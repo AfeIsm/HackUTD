@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+
+# env files (API keys) — NEVER commit
+.env
+.env*.local
+
+# Vercel
+.vercel
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Team-internal: not for judges ----
+PLAN.md
+CLAUDE.md
+.claude/
+notes/
+AGENTS.md
+
+# testing
+/coverage
+
+# local AI plugin state
+.claude-flow/
+.swarm/
