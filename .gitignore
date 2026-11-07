@@ -29,3 +29,11 @@ PLAN.md
 CLAUDE.md
 .claude/
 notes/
+AGENTS.md
+
+# testing
+/coverage
+
+# local AI plugin state
+.claude-flow/
+.swarm/
