@@ -30,6 +30,14 @@ function fetchPicture(memberId: string): Promise<void> {
   inflight.set(memberId, request);
   return request;
 }
+/** Refetch a member's picture after it changed (e.g. a purchase was saved), so every page updates. */
+export function invalidatePicture(memberId: string) {
+  const next = { ...snapshot };
+  delete next[memberId];
+  snapshot = next;
+  listeners.forEach((listener) => listener());
+  void fetchPicture(memberId);
+}
 export function usePicture(memberId: string): PictureState { return usePictures([memberId])[memberId]; }
 export function usePictures(memberIds: string[]): Record<string, PictureState> {
   const key = memberIds.join(',');

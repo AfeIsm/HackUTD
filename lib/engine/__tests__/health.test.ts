@@ -113,6 +113,15 @@ describe('fingerprints', () => {
 });
 
 describe('recorded purchases and reservations', () => {
+  it('a recorded purchase from emergency savings shows the warning, not just a what-if', () => {
+    const p = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a2' ? { ...a, balance: 72000 } : a),
+      txns: [{ id: 'bb', accountId: 'a2', kind: 'purchase' as const, amount: 18000, date: ASOF, description: 'Best Buy' }] };
+    expect(scoreHealth(p, { asOf: ASOF }).flags).toContain('This uses your emergency savings, not spending money.');
+  });
+  it('a recorded purchase fully covered by its goal does not', () => {
+    const p = { ...alex, txns: [{ id: 'gl', accountId: 'a2', kind: 'purchase' as const, amount: 18000, goalAllocationUsed: 18000, date: ASOF, description: 'Tickets' }] };
+    expect(scoreHealth(p, { asOf: ASOF }).flags).not.toContain('This uses your emergency savings, not spending money.');
+  });
   it('records the unallocated portion of a purchase that exceeds its goal', () => {
     const p = { ...healthy, goals: [{ ...healthy.goals[0], amount: 0 }], accounts: healthy.accounts.map((a) => a.id === 'a2' ? { ...a, balance: 50000 } : a),
       txns: [{ id: 'spent', accountId: 'a2', kind: 'purchase' as const, amount: 40000, goalAllocationUsed: 30000, date: ASOF, description: 'Tickets', category: 'goal:orlando' }] };

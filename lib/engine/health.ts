@@ -3,7 +3,7 @@ import { money, money0, shortDate } from '../format';
 import { addDays } from './dates';
 import { forecastBalance } from './forecast';
 import { dataHash } from './hash';
-import { checkSource, freeSavings, savingsBalance } from './source';
+import { EMERGENCY_SAVINGS_FLAG, checkSource, freeSavings, savingsBalance } from './source';
 import { financialInputs } from './validation';
 
 export const ENGINE_VERSION = '2-account-cents';
@@ -73,6 +73,8 @@ export function scoreHealth(p: FinancialPicture, opts: ScoreOptions): HealthResu
     reservedFromFree += r.amount - covered;
   }
   const pulled = pulledPast + fromFree + reservedFromFree;
+  // a purchase actually recorded from emergency savings (not just a what-if) gets the same warning
+  if (pulledPast > 0 && !flags.includes(EMERGENCY_SAVINGS_FLAG)) flags.push(EMERGENCY_SAVINGS_FLAG);
   const ratio = baseline > 0 ? pulled / baseline : 0;
   const protection = indicator('savingsProtection', 'Savings protection', 15, pulled, money0(pulled), structuralMissing ? 'needsInput' : pulled === 0 ? 'green' : baseline === 0 || ratio >= 0.1 ? 'red' : 'yellow',
     pulled ? `${money0(pulled)} used from unallocated savings; ${(ratio * 100).toFixed(1)}% of the ${money0(baseline)} pre-scenario savings baseline.` : fromGoals ? 'Only the matching goal allocation is consumed; emergency savings are untouched.' : 'No unallocated savings used for spending in the 30-day lookback.');
