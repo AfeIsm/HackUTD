@@ -3,7 +3,7 @@
 
 import type { Obligation, Paycheck, Txn } from '../types';
 import { isEssential } from './categories';
-import { addDays, addMonths, daysBetween } from './dates';
+import { addDays, addMonths, daysBetween, nextSemiMonthly } from './dates';
 
 const AMOUNT_TOLERANCE = 0.1; // amounts within ±10% of the median count as "the same"
 
@@ -15,8 +15,8 @@ export function median(nums: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+function roundCents(n: number): number {
+  return Math.round(n);
 }
 
 // "ACME CORP PAYROLL #4471" and "Acme Corp Payroll 4512" → "acme corp payroll"
@@ -32,8 +32,9 @@ export function normalizeLabel(text: string): string {
 function groupSorted(txns: Txn[], labelOf: (t: Txn) => string): [string, Txn[]][] {
   const groups = new Map<string, Txn[]>();
   for (const t of txns) {
-    const label = labelOf(t);
-    if (!label) continue;
+    const normalized = labelOf(t);
+    if (!normalized) continue;
+    const label = `${t.accountId}|${normalized}`;
     groups.set(label, [...(groups.get(label) ?? []), t]);
   }
   return [...groups.entries()]
@@ -83,7 +84,9 @@ export function detectPaychecks(txns: Txn[], asOf?: string): Paycheck | null {
     );
     if (cadence === undefined) continue;
 
-    const step = (d: string) => (cadence === 30 ? addMonths(d, 1) : addDays(d, cadence));
+    const observedDays = [...new Set(group.map((t) => { const day = Number(t.date.slice(8)); return day >= 28 ? 31 : day; }))].sort((a, b) => a - b);
+    const semiMonthlyDays: [number, number] | undefined = cadence === 15 && observedDays.length === 2 ? [observedDays[0], observedDays[1]] : undefined;
+    const step = (d: string) => cadence === 15 && semiMonthlyDays ? nextSemiMonthly(d, semiMonthlyDays) : cadence === 30 ? addMonths(d, 1) : addDays(d, cadence);
     let nextDate = step(group[group.length - 1].date);
     if (asOf) while (nextDate <= asOf) nextDate = step(nextDate);
 
@@ -91,7 +94,7 @@ export function detectPaychecks(txns: Txn[], asOf?: string): Paycheck | null {
     if (!best || total > best.total) {
       best = {
         total,
-        paycheck: { avgAmount: round2(total / amounts.length), cadenceDays: cadence, nextDate },
+        paycheck: { accountId: group[0].accountId, ...(semiMonthlyDays ? { semiMonthlyDays } : {}), avgAmount: roundCents(total / amounts.length), cadenceDays: cadence, nextDate },
       };
     }
   }
@@ -136,8 +139,9 @@ export function detectRecurring(txns: Txn[], asOf?: string): Obligation[] {
     const name = last.merchant ?? last.description;
     found.push({
       key: `detected:${label.replace(/ /g, '-')}`,
+      accountId: last.accountId,
       name,
-      amount: round2(median(amounts)),
+      amount: roundCents(median(amounts)),
       nextDate,
       cadence: match.cadence,
       essential: isEssential(last.category, name),

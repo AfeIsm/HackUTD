@@ -11,7 +11,7 @@ import { buildPicture } from './picture';
 export interface SnapshotDoc {
   memberId: string;
   dataHash: string;
-  score: number;
+  score: number | null; // null = needs input (incomplete data)
   overall: Status;
   indicators: Indicator[];
   flags: string[];
@@ -25,7 +25,7 @@ export interface HealthPayload {
   source: string;
   saved: boolean; // snapshot written to MongoDB
   unchanged: boolean; // same dataHash as the previous snapshot
-  history: { score: number; overall: Status; trigger: string; createdAt: string }[];
+  history: { score: number | null; overall: Status; trigger: string; createdAt: string }[];
 }
 
 export async function runHealthCheck(memberId: string, trigger: string): Promise<HealthPayload> {

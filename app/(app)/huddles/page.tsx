@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
 import { HOUSEHOLD_IDS, getPerson } from '@/lib/people';
 import { createHuddle, friendsOf, payers, respondToInvite, totalPledged, useHuddleStore } from '@/lib/huddles';
@@ -35,7 +36,7 @@ export default function HuddlesPage() {
   const [date, setDate] = useState('');
   const [paying, setPaying] = useState<Record<string, boolean>>({});
   const isPaying = (id: string) => paying[id] ?? getPerson(id).roleLabel !== 'Dependent · 10';
-  const valid = name.trim() && Number(total) > 0 && date;
+  const valid = name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
     <>
@@ -91,7 +92,7 @@ export default function HuddlesPage() {
               <div className="flex justify-between gap-3 text-sm">
                 <span>
                   {h.phase === 'locked'
-                    ? 'Fully funded · locked'
+                    ? 'Plan locked · funding pending'
                     : revealed
                       ? `${money0(totalPledged(h))} of ${money0(h.totalCost)} committed`
                       : `${committed} of ${ps.length} committed`}
@@ -111,7 +112,7 @@ export default function HuddlesPage() {
           e.preventDefault();
           if (!valid) return;
           const id = createHuddle({
-            name: name.trim(), totalCost: Number(total), targetDate: date, createdBy: me.id,
+            name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date, createdBy: me.id,
             members: candidates.map((id) => ({ id, isPaying: isPaying(id) })),
           });
           router.push(`/huddles/${id}`);

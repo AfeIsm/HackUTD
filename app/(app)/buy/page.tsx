@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { AffordResult, Source } from '@/lib/types';
+import type { AffordResult } from '@/lib/types';
 import { canAfford } from '@/lib/engine/afford';
-import { freeSavings } from '@/lib/engine/source';
-import { money, money0, shortDate } from '@/lib/format';
+import { fundingOptions } from '@/lib/fundingOptions';
+import { parseMoney } from '@/lib/engine/money';
+import { IndicatorList } from '@/components/IndicatorList';
+import { money0, shortDate } from '@/lib/format';
 import { DEMO_ASOF, getPerson } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
@@ -45,27 +47,32 @@ export default function BuyPage() {
   const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
 
   const picture = loaded.status === 'ready' ? loaded.picture : null;
+  const options = picture ? fundingOptions(picture) : [];
+  const selected = options.find((o) => o.value === q.from) ?? options[0];
   const askedQ = asked?.memberId === person.id ? asked.q : null;
 
   let result: AffordResult | null = null;
   if (picture && askedQ && Number(askedQ.cost) > 0) {
-    const isChecking = askedQ.from === 'checking';
+    const funding = options.find((o) => o.value === askedQ.from);
     result = canAfford(
       picture,
       {
         label: askedQ.label || 'this',
-        cost: Number(askedQ.cost),
+        cost: parseMoney(askedQ.cost) ?? NaN,
         date: askedQ.date || undefined,
-        source: (isChecking ? 'checking' : 'savings') as Source,
-        goalId: !isChecking && askedQ.from !== 'free' ? askedQ.from : undefined,
+        sourceAccountId: funding?.sourceAccountId ?? '',
+        goalId: funding?.goalId,
       },
       DEMO_ASOF,
     );
   }
 
   const ask = (next: Question) => {
-    setQ(next);
-    setAsked({ memberId: person.id, q: next });
+    const funding = options.find((o) => o.value === next.from)
+      ?? options.find((o) => picture?.accounts.find((a) => a.id === o.sourceAccountId)?.type === (next.from === 'free' ? 'Savings' : 'Checking'));
+    const normalized = { ...next, from: funding?.value ?? '' };
+    setQ(normalized);
+    setAsked({ memberId: person.id, q: normalized });
   };
 
   return (
@@ -89,7 +96,7 @@ export default function BuyPage() {
             aria-label="Purchase question"
             onSubmit={(e) => {
               e.preventDefault();
-              ask(q);
+              ask({ ...q, from: selected?.value ?? '' });
             }}
           >
             <div className="flex flex-col gap-2">
@@ -123,19 +130,11 @@ export default function BuyPage() {
             </div>
             <label className="flex flex-col gap-1.5 text-sm font-semibold">
               Pay from
-              <select className={input} value={q.from} onChange={(e) => setQ({ ...q, from: e.target.value })}>
-                <option value="checking">
-                  Checking · {money(picture.accounts.filter((a) => a.type === 'Checking').reduce((s, a) => s + a.balance, 0))}
-                </option>
-                <option value="free">Savings, not set aside · {money(freeSavings(picture))}</option>
-                {picture.goals.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    Savings: {g.name} · {money(g.amount)}
-                  </option>
-                ))}
+              <select className={input} value={selected?.value ?? ''} onChange={(e) => setQ({ ...q, from: e.target.value })}>
+                {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
-            <button type="submit" className={btn} disabled={!(Number(q.cost) > 0)}>
+            <button type="submit" className={btn} disabled={!selected || (parseMoney(q.cost) ?? 0) <= 0}>
               Check it
             </button>
           </form>
@@ -158,9 +157,13 @@ export default function BuyPage() {
                   <ScoreBox
                     label={result.verdict === 'yes' ? 'Score after buying' : 'If you bought it now'}
                     value={result.scoreAfter}
-                    tone={result.scoreAfter < result.scoreBefore ? (result.scoreAfter < 50 ? 'bad' : 'warn') : 'good'}
+                    tone={result.after.overall === 'green' ? 'good' : result.after.overall === 'red' ? 'bad' : 'warn'}
                   />
                 </div>
+                {result.verifiedAlternative && <p className="rounded-lg bg-good-bg p-3">Verified alternative score: {result.verifiedAlternative.result.score} on {shortDate(result.verifiedAlternative.date)}.</p>}
+                <details><summary>Before: indicators</summary><IndicatorList indicators={result.before.indicators} /></details>
+                <details><summary>After: indicators</summary><IndicatorList indicators={result.after.indicators} /></details>
+                {result.missingInputs.length > 0 && <ul>{result.missingInputs.map((m) => <li key={m}>{m}</li>)}</ul>}
                 {result.flags.length > 0 && (
                   <ul className="m-0 flex list-none flex-col gap-2 p-0">
                     {result.flags.map((f) => (
@@ -179,13 +182,13 @@ export default function BuyPage() {
   );
 }
 
-function ScoreBox({ label, value, tone }: { label: string; value: number; tone?: 'good' | 'warn' | 'bad' }) {
+function ScoreBox({ label, value, tone }: { label: string; value: number | null; tone?: 'good' | 'warn' | 'bad' }) {
   const bg = tone === 'bad' ? 'bg-bad-bg' : tone === 'warn' ? 'bg-warn-bg' : tone === 'good' ? 'bg-good-bg' : 'bg-bg';
   const fg = tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : tone === 'good' ? 'text-good' : 'text-ink';
   return (
     <div className={`flex flex-[1_1_160px] flex-col gap-1 rounded-xl p-4 ${bg}`}>
       <span className="text-[13px] text-muted">{label}</span>
-      <span className={`font-display text-[32px] font-bold ${fg}`}>{value}</span>
+      <span className={`font-display text-[32px] font-bold ${fg}`}>{value ?? 'Needs input'}</span>
     </div>
   );
 }

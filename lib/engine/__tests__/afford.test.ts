@@ -1,84 +1,71 @@
 import { describe, expect, it } from 'vitest';
 import { canAfford } from '../afford';
-import { capacity, checkPledge, fairSplit, shortfall, weeksUntil } from '../split';
+import { capacity, checkPledge, fairSplit, shortfall } from '../split';
 import { ASOF, alex } from './fixtures';
+const healthy = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) };
+const buy = (p = healthy, cost = 12000, sourceAccountId = 'a1', date = ASOF) => canAfford(p, { label: 'Purchase', cost, sourceAccountId, date }, ASOF);
 
-describe('canAfford', () => {
-  it('$120 concert after payday from checking → yes', () => {
-    const r = canAfford(alex, { label: 'Concert', cost: 120, date: '2026-11-21', source: 'checking' }, ASOF);
-    expect(r.verdict).toBe('yes');
-    expect(r.scoreAfter).toBe(r.scoreBefore);
+describe('purchase approval', () => {
+  it('approves only a complete green result', () => expect(buy().verdict).toBe('yes'));
+  it('unchanged yellow is not Yes', () => {
+    const r = buy(alex, 100);
+    expect(r.scoreBefore).toBe(60); expect(r.scoreAfter).toBe(60); expect(r.verdict).toBe('no');
   });
-
-  it('$900 PS6 today → not today (bills), but yes after the Nov 13 paycheck', () => {
-    const r = canAfford(alex, { label: 'PS6', cost: 900, source: 'checking' }, ASOF);
-    expect(r.verdict).toBe('yesIf');
-    expect([r.scoreBefore, r.scoreAfter]).toEqual([60, 40]);
-    expect(r.readyDate).toBe('2026-11-13');
-    expect(r.reason).toContain('Nov 12');
+  it('does not use a rich second account to fund the selected account', () => {
+    const p = { ...healthy, accounts: [...healthy.accounts, { ...healthy.accounts[0], id: 'rich', balance: 10000000 }] };
+    expect(buy(p, 3000000).verdict).toBe('no');
   });
-
-  it('$180 from emergency savings → no, with a checking alternative', () => {
-    const r = canAfford(alex, { label: 'Headphones', cost: 180, source: 'savings' }, ASOF);
+  it('verifies a later payday on the same account before offering Yes if', () => {
+    const r = buy(healthy, 90000);
+    expect(r.verdict).toBe('yesIf'); expect(r.readyDate).toBe('2026-11-13');
+    expect(r.verifiedAlternative?.sourceAccountId).toBe('a1');
+    expect(r.verifiedAlternative?.result.overall).toBe('green');
+  });
+  it('does not switch savings to checking without a new question', () => {
+    expect(buy(healthy, 70000, 'a2').verdict).toBe('no');
+  });
+  it('rejects nonowned, unknown and credit-card accounts', () => {
+    for (const id of ['a3', 'unknown']) expect(buy(healthy, 100, id).verdict).toBe('no');
+  });
+  it.each([0, -1, 10.1, Infinity, NaN])('rejects invalid purchase cents %s', (cost) => expect(buy(healthy, cost).verdict).toBe('no'));
+  it.each(['2026-11-06', '2026-02-30', 'not-a-date'])('rejects invalid or historical date %s', (date) => expect(buy(healthy, 100, 'a1', date).verdict).toBe('no'));
+  it('does not approve a purchase beyond the original 30-day forecast without simulating its date', () => {
+    const p = { ...healthy, paycheck: { ...healthy.paycheck!, avgAmount: 1 }, obligations: [] };
+    const r = buy(p, 900000, 'a1', '2027-02-01');
     expect(r.verdict).toBe('no');
-    expect(r.reason).toContain('emergency savings');
-    expect(r.reason).toContain('Nov 13');
   });
-
-  it('$180 from the Orlando fund → yes', () => {
-    expect(canAfford(alex, { label: 'Park tickets', cost: 180, source: 'savings', goalId: 'orlando' }, ASOF).verdict).toBe('yes');
+  it('blocks missing income and preserves before/after indicators', () => {
+    const r = buy({ ...healthy, paycheck: null }, 100);
+    expect(r.verdict).toBe('no'); expect(r.scoreAfter).toBeNull();
+    expect(r.after.indicators).toHaveLength(5); expect(r.missingInputs.length).toBeGreaterThan(0);
   });
-
-  it('something huge → save-up plan with weekly amount and ready date', () => {
-    const r = canAfford(alex, { label: 'Laptop', cost: 2400, source: 'checking' }, ASOF);
-    expect(r.verdict).toBe('yesIf');
-    expect(r.weeklySavingsNeeded).toBe(120);
-    expect(r.readyDate).toBe('2027-03-27');
+  it('checks existing reservations alongside the candidate', () => {
+    const p = { ...healthy, reservations: [{ id: 'other', sourceAccountId: 'a1', amount: 70000, date: ASOF }] };
+    expect(buy(p, 20000).verdict).toBe('no');
+  });
+  it('a matching goal purchase keeps its account funds separate', () => {
+    const r = canAfford(healthy, { label: 'Tickets', cost: 18000, sourceAccountId: 'a2', goalId: 'orlando' }, ASOF);
+    expect(r.verdict).toBe('yes'); expect(r.after.accountForecasts.a2[0].balance).toBe(72000);
+  });
+  it('does not fabricate a long-term savings plan', () => {
+    const r = buy(healthy, 100000000);
+    expect(r.verdict).toBe('no'); expect(r.weeklySavingsNeeded).toBeUndefined(); expect(r.readyDate).toBeUndefined();
   });
 });
-
-describe('huddle math', () => {
-  const trip = '2027-03-20';
-
-  it('weeks until the trip', () => {
-    expect(weeksUntil(ASOF, trip)).toBe(19);
+describe('immediate-funding Huddle checks', () => {
+  it('future income cannot fund today’s contribution', () => {
+    expect(checkPledge(alex, { amount: 90000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(false);
+    expect(capacity(alex, '2027-03-20', ASOF)).toBe(0);
   });
-
-  it('capacity = 10% of pay per week until the trip, rounded down to $50', () => {
-    expect(capacity(alex, trip, ASOF)).toBe(1750); // $925/wk × 10% × 19 weeks = $1,757
+  it('yellow requires separate acknowledgement and is not silently committed', () => {
+    const r = checkPledge(alex, { amount: 100, sourceAccountId: 'a1' }, '2027-03-20', ASOF);
+    expect(r.passed).toBe(false); expect(r.requiresAcknowledgement).toBe(true);
   });
-
-  it('pledge from checking within capacity passes', () => {
-    const r = checkPledge(alex, { amount: 900, source: 'checking' }, trip, ASOF);
-    expect(r.passed).toBe(true);
-    expect(r.weekly).toBe(48);
-  });
-
-  it('pledge from emergency savings fails privately, with a checking suggestion', () => {
-    const r = checkPledge(alex, { amount: 900, source: 'savings' }, trip, ASOF);
-    expect(r.passed).toBe(false);
-    expect(r.reason).toContain('emergency savings');
-    expect(r.suggestion).toMatchObject({ amount: 900, source: 'checking', weekly: 48 });
-  });
-
-  it('pledge over capacity fails and suggests the max', () => {
-    const r = checkPledge(alex, { amount: 3000, source: 'checking' }, trip, ASOF);
-    expect(r.passed).toBe(false);
-    expect(r.suggestion?.amount).toBe(1750);
-  });
-
-  it('pledge from the trip fund passes', () => {
-    expect(checkPledge(alex, { amount: 300, source: 'savings', goalId: 'orlando' }, trip, ASOF).passed).toBe(true);
-  });
-
-  it('fair split is proportional and adds up exactly', () => {
-    const split = fairSplit(4000, { alex: 1750, jordan: 2450, sam: 2050, maya: 100 });
-    expect(Object.values(split).reduce((s, v) => s + v, 0)).toBe(4000);
-    expect(split.jordan).toBeGreaterThan(split.alex);
-  });
-
-  it('shortfall', () => {
-    expect(shortfall(4000, [1800, 100, 900, 800])).toBe(400);
-    expect(shortfall(4000, [2000, 2500])).toBe(0);
+  it('a funded green exact-account contribution can pass', () => expect(checkPledge(healthy, { amount: 12000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(true));
+  it('fair split never exceeds available capacities and preserves exact cents', () => {
+    const split = fairSplit(101, { a: 50, b: 100 });
+    expect(Object.values(split).reduce((s, n) => s + n, 0)).toBe(101);
+    const short = fairSplit(1000, { a: 50, b: 100 });
+    expect(short).toEqual({ a: 50, b: 100 }); expect(shortfall(1000, Object.values(short))).toBe(850);
   });
 });

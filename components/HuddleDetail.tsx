@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import type { DeclineReason, FinancialPicture, Source } from '@/lib/types';
+import type { DeclineReason, FinancialPicture } from '@/lib/types';
 import { capacity, checkPledge, fairSplit, shortfall } from '@/lib/engine/split';
-import { freeSavings } from '@/lib/engine/source';
-import { money, money0, shortDate } from '@/lib/format';
+import { fundingOptions } from '@/lib/fundingOptions';
+import { parseMoney } from '@/lib/engine/money';
+import { money0, shortDate } from '@/lib/format';
 import { DEMO_ASOF, getPerson } from '@/lib/people';
 import {
   type Huddle, type Participant, agree, cancelHuddle, decline, editHuddle, payers, publicParticipants,
@@ -112,12 +113,12 @@ export function HuddleDetail({ id }: { id: string }) {
               done={short === 0}
               note={
                 h.phase === 'locked'
-                  ? 'Locked. Every commitment moves into the trip fund.'
+                  ? 'Plan locked in this browser demo. No transfers have been executed.'
                   : h.phase === 'cancelled'
                     ? 'This huddle was cancelled.'
                     : short > 0
                       ? `${money0(short)} short. Each payer can see a private plan to commit more.`
-                      : `Fully funded. ${ps.filter((p) => p.agreed).length} of ${ps.length} have agreed.`
+                      : `Fully pledged. ${ps.filter((p) => p.agreed).length} of ${ps.length} have agreed.`
               }
             />
           )}
@@ -163,7 +164,7 @@ export function HuddleDetail({ id }: { id: string }) {
                 <div key={p.memberId} className="flex justify-between gap-3 py-1 text-sm">
                   <span>{getPerson(p.memberId).name} → trip fund</span>
                   <span className="font-semibold">
-                    {money0(p.pledge ?? 0)} · <span className="text-good">Scheduled</span>
+                    {money0(p.pledge ?? 0)} · <span className="text-good">Not transferred</span>
                   </span>
                 </div>
               ))}
@@ -201,14 +202,14 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
   if (!picture) return <p className="m-0 text-ink-2">Loading your accounts…</p>;
 
   const isCreator = h.createdBy === meId;
-  const sourceText = mine.source === 'checking' ? 'checking' : mine.goalId ? 'your trip fund' : 'savings';
+  const sourceText = picture.accounts.find((a) => a.id === mine.sourceAccountId)?.nickname ?? 'your selected account';
 
   if (h.phase === 'locked') {
     return (
       <div className="flex flex-col gap-2.5">
         <h2 className="m-0 text-[22px]">Locked</h2>
         <p className="m-0 leading-relaxed text-ink-2">
-          Your {money0(mine.pledge ?? 0)} from {sourceText} is going into the {h.name} fund. Your health checks include it from now on.
+          Your {money0(mine.pledge ?? 0)} from {sourceText} is pledged to the {h.name} fund. Funding and saved reservations are not implemented yet.
         </p>
       </div>
     );
@@ -233,7 +234,7 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
               type="button"
               className={`${btn} self-start`}
               onClick={() => {
-                const pledge = { amount: mine.suggestion!.amount, source: 'checking' as Source };
+                const pledge = { amount: mine.suggestion!.amount, sourceAccountId: picture.accounts.find((a) => a.type === 'Checking')?.id ?? '' };
                 submitPledge(h.id, meId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF));
               }}
             >
@@ -275,22 +276,22 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
 
   if (h.phase === 'revealed') {
     const room = capacity(picture, h.targetDate, DEMO_ASOF) - (mine.pledge ?? 0);
-    const extra = Math.min(room, Math.ceil(short / 50) * 50);
+    const extra = Math.min(room, Math.ceil(short / 5000) * 5000);
     return (
       <div className="flex flex-col gap-3.5">
         <h2 className="m-0 text-[22px]">{short > 0 ? `The group is ${money0(short)} short` : 'Waiting on a changed pledge'}</h2>
         {committedBox}
-        {short > 0 && extra >= 50 && (
+        {short > 0 && extra >= 5000 && (
           <div className="flex flex-col gap-2 rounded-xl bg-bg p-4">
             <Eyebrow>Your plan to commit more</Eyebrow>
             <p className="m-0 text-[17px] font-semibold leading-snug">
-              You can add {money0(extra)} and still stay within 10% of your paycheck.
+              You can add {money0(extra)} subject to a fresh immediate-funding check.
             </p>
             <button
               type="button"
               className={`${btn} self-start`}
               onClick={() => {
-                const pledge = { amount: (mine.pledge ?? 0) + extra, source: 'checking' as Source };
+                const pledge = { amount: (mine.pledge ?? 0) + extra, sourceAccountId: picture.accounts.find((a) => a.type === 'Checking')?.id ?? '' };
                 submitPledge(h.id, meId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF));
               }}
             >
@@ -298,7 +299,7 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
             </button>
           </div>
         )}
-        {short > 0 && extra < 50 && <p className="m-0 text-sm text-ink-2">You’re already at your limit. Others can raise theirs, or the creator can lower the total.</p>}
+        {short > 0 && extra < 5000 && <p className="m-0 text-sm text-ink-2">You’re already at your limit. Others can raise theirs, or the creator can lower the total.</p>}
         <button type="button" className={`${btn2} self-start`} onClick={() => setChanging(true)}>Change my amount</button>
         {editTotal}
       </div>
@@ -308,7 +309,7 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
   // agreeing
   return (
     <div className="flex flex-col gap-3.5">
-      <h2 className="m-0 text-[22px]">{mine.agreed ? 'You agreed' : 'Fully funded. Do you agree?'}</h2>
+      <h2 className="m-0 text-[22px]">{mine.agreed ? 'You agreed' : 'Fully pledged. Do you agree?'}</h2>
       {committedBox}
       {mine.agreed ? (
         <p className="m-0 text-ink-2">Waiting for everyone else to agree. Then it locks.</p>
@@ -339,21 +340,22 @@ function PrivatePanel({ h, mine, picture, meId, short }: { h: Huddle; mine?: Par
   );
 }
 
-function PledgeForm({ h, picture, initial, onSubmit }: {
-  h: Huddle; picture: FinancialPicture; initial?: number; onSubmit: (p: { amount: number; source: Source; goalId?: string }) => void;
+function PledgeForm({ picture, initial, onSubmit }: {
+  h: Huddle; picture: FinancialPicture; initial?: number; onSubmit: (p: { amount: number; sourceAccountId: string; goalId?: string }) => void;
 }) {
-  const [amount, setAmount] = useState(initial ? String(initial) : '');
+  const [amount, setAmount] = useState(initial ? String(initial / 100) : '');
   const [from, setFrom] = useState('checking');
-  const checking = picture.accounts.filter((a) => a.type === 'Checking').reduce((s, a) => s + a.balance, 0);
-  const value = Number(amount);
+  const options = fundingOptions(picture);
+  const selected = options.find((o) => o.value === from) ?? options[0];
+  const value = parseMoney(amount) ?? 0;
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (!(value > 0)) return;
-        const isChecking = from === 'checking';
-        onSubmit({ amount: value, source: isChecking ? 'checking' : 'savings', goalId: !isChecking && from !== 'free' ? from : undefined });
+        if (!selected) return;
+        onSubmit({ amount: value, sourceAccountId: selected.sourceAccountId, goalId: selected.goalId });
       }}
     >
       <h2 className="m-0 text-[22px]">Your pledge</h2>
@@ -363,22 +365,18 @@ function PledgeForm({ h, picture, initial, onSubmit }: {
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
         Pay from
-        <select className={input} value={from} onChange={(e) => setFrom(e.target.value)}>
-          <option value="checking">Checking, set aside weekly until {shortDate(h.targetDate)} · {money(checking)}</option>
-          <option value="free">Savings, not set aside · {money(freeSavings(picture))}</option>
-          {picture.goals.map((g) => (
-            <option key={g.id} value={g.id}>Savings: {g.name} · {money(g.amount)}</option>
-          ))}
+        <select className={input} value={selected?.value ?? ''} onChange={(e) => setFrom(e.target.value)}>
+          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
       <button type="submit" className={btn} disabled={!(value > 0)}>Confirm commitment</button>
-      <p className="m-0 text-[13px] text-muted">We run your health check with this pledge. If it doesn’t pass, only you see why.</p>
+      <p className="m-0 text-[13px] text-muted">We run your health check with this pledge. If it doesn’t pass, the result appears here. Yellow results require a separate acknowledgement before commitment.</p>
     </form>
   );
 }
 
 function CreatorControls({ h }: { h: Huddle }) {
-  const [total, setTotal] = useState(String(h.totalCost));
+  const [total, setTotal] = useState(String(h.totalCost / 100));
   const [date, setDate] = useState(h.targetDate);
   return (
     <details className="rounded-xl border border-line p-4">
@@ -392,7 +390,7 @@ function CreatorControls({ h }: { h: Huddle }) {
           Pay by
           <input className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
-        <button type="button" className={btn2} onClick={() => Number(total) > 0 && editHuddle(h.id, { totalCost: Number(total), targetDate: date })}>
+        <button type="button" className={btn2} onClick={() => (parseMoney(total) ?? 0) > 0 && editHuddle(h.id, { totalCost: parseMoney(total) ?? 0, targetDate: date })}>
           Save
         </button>
         <button type="button" className={`${btn2} text-bad`} onClick={() => cancelHuddle(h.id)}>Cancel huddle</button>

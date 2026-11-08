@@ -1,5 +1,8 @@
 'use client';
 
+// My Money. Loads the latest SAVED health check from /api/health (MongoDB), and every change
+// (purchase, tag, re-run) is saved through the API, which re-runs the check automatically.
+
 import { useEffect, useState } from 'react';
 import type { HealthPayload } from '@/lib/services/health';
 import { freeSavings } from '@/lib/engine/source';
@@ -83,7 +86,8 @@ export default function DashboardPage() {
     );
   }
 
-  const addPurchase = (p: NewPurchase) => send('/api/purchases', 'POST', { merchant: p.merchant, amount: p.amount, from: p.from }, () => null);
+  const addPurchase = (p: NewPurchase) =>
+    send('/api/purchases', 'POST', { merchant: p.merchant, amount: p.amount, sourceAccountId: p.sourceAccountId, goalId: p.goalId }, () => null);
   const toggleTag = (key: string) => {
     const o = picture.obligations.find((x) => x.key === key);
     if (o) send('/api/obligations', 'PATCH', { key, essential: !o.essential }, () => null);
@@ -96,13 +100,22 @@ export default function DashboardPage() {
   const checking = picture.accounts.filter((a) => a.type === 'Checking');
   const savings = picture.accounts.filter((a) => a.type === 'Savings');
   const cards = picture.accounts.filter((a) => a.type === 'Credit Card');
-  const setAside = picture.goals.reduce((s, g) => s + g.amount, 0);
   const added = picture.txns.filter((t) => t.id.startsWith('app-'));
 
   return (
     <>
       <PageTitle name={person.name} />
 
+      {result.missingInputs.length > 0 && (
+        <Card label="Complete your assessment">
+          <h2 className="m-0 mb-2 text-xl">Needs input</h2>
+          <ul className="m-0 pl-5 text-ink-2">
+            {result.missingInputs.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {result.flags.length > 0 && (
         <div role="alert" className="flex items-start gap-3.5 rounded-xl border border-[#F2C3BF] bg-bad-bg px-5 py-4 text-[#7A1712]">
           <WarningIcon />
@@ -110,7 +123,7 @@ export default function DashboardPage() {
             {result.flags.map((f) => (
               <strong key={f}>{f}</strong>
             ))}
-            <span className="text-sm">Your score is now {result.score}. See what changed below.</span>
+            <span className="text-sm">Your score is now {result.score ?? 'incomplete'}. See what changed below.</span>
           </div>
         </div>
       )}
@@ -121,7 +134,7 @@ export default function DashboardPage() {
           <ScoreGauge score={result.score} status={result.overall} />
           <StatusPill status={result.overall} />
           <p className="m-0 text-[13px] leading-normal text-muted">
-            Score {result.score} · checked {timeLabel(result.checkedAt)} · after: {result.trigger}
+            Score {result.score ?? 'incomplete'} · checked {timeLabel(result.checkedAt)} · after: {result.trigger}
           </p>
           {shownNote && (
             <p className={`m-0 rounded-lg px-3 py-2 text-[13px] ${shownNote.ok ? 'bg-good-bg text-good' : 'bg-bad-bg text-bad'}`}>{shownNote.text}</p>
@@ -163,7 +176,7 @@ export default function DashboardPage() {
             <ul className="m-0 flex list-none flex-col p-0">
               {payload.history.map((h, i) => (
                 <li key={`${h.createdAt}-${i}`} className="flex items-center gap-3 border-t border-[#EFEFEA] py-2 text-[13px]">
-                  <span className={`w-8 font-display text-base font-bold ${TONE[h.overall].pill.split(' ')[1]}`}>{h.score}</span>
+                  <span className={`w-8 font-display text-base font-bold ${TONE[h.overall].pill.split(' ')[1]}`}>{h.score ?? '—'}</span>
                   <span className="min-w-0 flex-1 truncate text-ink-2">{h.trigger}</span>
                   <span className="text-muted">{timeLabel(h.createdAt)}</span>
                 </li>
@@ -179,7 +192,7 @@ export default function DashboardPage() {
         ))}
         {savings.map((a) => (
           <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
-            sub={setAside > 0 ? `${money0(setAside)} set aside · ${money0(freeSavings(picture))} free` : 'Nothing set aside yet'} />
+            sub={`${money0(picture.goals.filter((g) => g.accountId === a.id).reduce((s, g) => s + g.amount, 0))} set aside · ${money0(freeSavings(picture, a.id))} free`} />
         ))}
         {cards.map((a) => (
           <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
@@ -204,7 +217,12 @@ export default function DashboardPage() {
             <h2 className="m-0 text-xl">Next 30 days in checking</h2>
             <span className="text-[13px] text-muted">paychecks minus bills</span>
           </div>
-          <ForecastChart points={result.forecast} />
+          {checking.map((a) => (
+            <div key={a.id}>
+              {checking.length > 1 && <h3 className="text-sm">{a.nickname}</h3>}
+              <ForecastChart points={result.accountForecasts[a.id] ?? []} />
+            </div>
+          ))}
         </Card>
         <Card label="Bills and subscriptions" className="min-w-0 flex-[1_1_420px]">
           <ObligationsList obligations={picture.obligations} onToggle={toggleTag} />

@@ -4,17 +4,17 @@ import { buildObligations } from '../obligations';
 
 // Alex's seed: matches the mockup's 9 bills & subscriptions, $1,790/mo essential.
 const bills: Bill[] = [
-  { id: 'b1', payee: 'Rent', amount: 1200, nextDate: '2026-12-01', category: 'Housing' },
-  { id: 'b2', payee: 'Electric', amount: 120, nextDate: '2026-11-10', category: 'Utilities' },
-  { id: 'b3', payee: 'Car insurance', amount: 95, nextDate: '2026-11-12', category: 'Insurance' },
-  { id: 'b4', payee: 'T-Mobile USA', amount: 65, nextDate: '2026-11-12', category: 'Phone' },
+  { id: 'b1', accountId: 'a1', payee: 'Rent', amount: 120000, nextDate: '2026-12-01', category: 'Housing' },
+  { id: 'b2', accountId: 'a1', payee: 'Electric', amount: 12000, nextDate: '2026-11-10', category: 'Utilities' },
+  { id: 'b3', accountId: 'a1', payee: 'Car insurance', amount: 9500, nextDate: '2026-11-12', category: 'Insurance' },
+  { id: 'b4', accountId: 'a1', payee: 'T-Mobile USA', amount: 6500, nextDate: '2026-11-12', category: 'Phone' },
 ];
 
-const loans: Loan[] = [{ id: 'l1', type: 'car', monthlyPayment: 310, nextDate: '2026-11-20' }];
+const loans: Loan[] = [{ id: 'l1', accountId: 'a1', type: 'car', monthlyPayment: 31000, nextDate: '2026-11-20' }];
 
 const sub = (name: string, amount: number, nextDate: string, essential = false): Obligation => ({
   key: `detected:${name.toLowerCase().replace(/[^a-z]+/g, '-')}`,
-  name, amount, nextDate, cadence: 'monthly', essential, origin: 'detected',
+  accountId: 'a1', name, amount: Math.round(amount * 100), nextDate, cadence: 'monthly', essential, origin: 'detected',
 });
 
 // What detectRecurring finds on Alex's card (T-Mobile duplicates the bill above)
@@ -44,7 +44,7 @@ describe('buildObligations', () => {
     const essential = list.filter((o) => o.essential).map((o) => o.name).sort();
     expect(essential).toEqual(['Car insurance', 'Car loan', 'Electric', 'Rent', 'T-Mobile USA']);
     const monthlyEssential = list.filter((o) => o.essential).reduce((sum, o) => sum + o.amount, 0);
-    expect(monthlyEssential).toBe(1790);
+    expect(monthlyEssential).toBe(179000);
   });
 
   it('names loans readably', () => {

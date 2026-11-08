@@ -4,19 +4,19 @@ import type { FinancialPicture, Obligation } from '../../types';
 export const ASOF = '2026-11-07';
 
 const ob = (key: string, name: string, amount: number, nextDate: string, essential: boolean, origin: Obligation['origin']): Obligation => ({
-  key, name, amount, nextDate, cadence: 'monthly', essential, origin,
+  key, accountId: 'a1', name, amount: Math.round(amount * 100), nextDate, cadence: 'monthly', essential, origin,
 });
 
 export const alex: FinancialPicture = {
-  memberId: 'alex',
+  memberId: 'alex', reservations: [], missingInputs: [],
   accounts: [
-    { id: 'a1', type: 'Checking', nickname: 'Checking', balance: 386.4 },
-    { id: 'a2', type: 'Savings', nickname: 'Savings', balance: 900 },
-    { id: 'a3', type: 'Credit Card', nickname: 'Card', balance: 900, limit: 2000 },
+    { id: 'a1', ownerMemberId: 'alex', type: 'Checking', nickname: 'Checking', balance: 38640 },
+    { id: 'a2', ownerMemberId: 'alex', type: 'Savings', nickname: 'Savings', balance: 90000 },
+    { id: 'a3', ownerMemberId: 'alex', type: 'Credit Card', nickname: 'Card', balance: 90000, minimumPayment: 2700, limit: 200000 },
   ],
   txns: [],
-  paycheck: { avgAmount: 1850, cadenceDays: 14, nextDate: '2026-11-13' },
-  goals: [{ id: 'orlando', name: 'Orlando fund', amount: 300 }],
+  paycheck: { accountId: 'a1', avgAmount: 185000, cadenceDays: 14, nextDate: '2026-11-13' },
+  goals: [{ id: 'orlando', accountId: 'a2', name: 'Orlando fund', amount: 30000 }],
   obligations: [
     ob('bill:b2', 'Electric', 120, '2026-11-10', true, 'bill'),
     ob('bill:b3', 'Car insurance', 95, '2026-11-12', true, 'bill'),
@@ -26,6 +26,7 @@ export const alex: FinancialPicture = {
     ob('loan:l1', 'Car loan', 310, '2026-11-20', true, 'loan'),
     ob('detected:hulu', 'Hulu', 17.99, '2026-11-21', false, 'detected'),
     ob('detected:planet-fitness', 'Planet Fitness', 40, '2026-11-28', false, 'detected'),
+    ob('card:a3', 'Card minimum', 27, '2026-11-23', true, 'cardMinimum'),
     ob('bill:b1', 'Rent', 1200, '2026-12-01', true, 'bill'),
   ],
 };

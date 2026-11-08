@@ -1,12 +1,12 @@
-// Display helpers shared by pages and components.
+// Display helpers shared by pages and components. Money arguments are cents.
 
 export function money(n: number): string {
-  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const abs = (Math.abs(n) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${n < 0 ? '-' : ''}$${abs}`;
 }
 
 export function money0(n: number): string {
-  return `${n < 0 ? '-' : ''}$${Math.round(Math.abs(n)).toLocaleString('en-US')}`;
+  return `${n < 0 ? '-' : ''}$${Math.round(Math.abs(n) / 100).toLocaleString('en-US')}`;
 }
 
 // '2026-11-12' → 'Nov 12'
