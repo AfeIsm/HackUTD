@@ -96,7 +96,17 @@ export default function BuyPage() {
   const edited = askedQ && (q.label !== askedQ.label || q.cost !== askedQ.cost || q.date !== askedQ.date || selected?.value !== askedQ.from);
 
   return (
-    <PageShell id="buy" eyebrow="Before you buy" title="Can I buy it?" intro="A little clarity before checkout. See how a purchase fits your money.">
+    <PageShell
+      id="buy"
+      title="Can I buy it?"
+      intro={
+        <>
+          A little clarity before checkout.
+          <br />
+          See how a purchase fits your money.
+        </>
+      }
+    >
 
       {loaded.status !== 'ready' || !picture ? (
         <Card>
@@ -115,7 +125,6 @@ export default function BuyPage() {
             }}
           >
             <div className="buy-form-heading">
-              <span className="buy-step" aria-hidden="true">01</span>
               <div>
                 <h2 className="m-0">Your next purchase</h2>
                 <p className="buy-caption">Start with something on your wishlist.</p>

@@ -82,13 +82,16 @@ export function WalletScene() {
         <section className="wallet-half wallet-right leather" aria-label="Wallet pockets" inert={!w.open || (phone && w.side !== 'right') || undefined}>
           <LeatherTexture />
           <div className="stitch" aria-hidden />
-          <div className="cash-well" aria-hidden />
+          <div className="cash-well" aria-hidden>
+            <LeatherTexture />
+          </div>
           <div className="pockets">
           <NavObject id="buy" index={-1} />
           {SLOT_ORDER.map((id, i) => (
             <NavObject key={id} id={id} index={i} />
           ))}
           <div className="slot-pocket slot-pocket-base" style={{ top: 112 + 3 * 62 + 50, zIndex: 20 }} aria-hidden>
+            <LeatherTexture />
             <span className="pocket-emboss font-display">Your finances stay private.</span>
           </div>
           </div>
@@ -106,6 +109,7 @@ export function WalletScene() {
               <IdCard ref={idRef} />
             </div>
             <div className="flap-pocket" aria-hidden>
+              <LeatherTexture />
               <span className="pocket-emboss font-display">Est. HackUTD 2026</span>
             </div>
           </section>
@@ -122,7 +126,9 @@ export function WalletScene() {
             </div>
           </section>
         </div>
-        <div className="wallet-fold" aria-hidden />
+        <div className="wallet-fold" aria-hidden>
+          <LeatherTexture />
+        </div>
       </div>
       </div>
 
@@ -159,9 +165,13 @@ function NavObject({ id, index }: { id: CardId; index: number }) {
         <CardFace id={id} />
       </button>
       {isCash ? (
-        <div className="cash-pocket" aria-hidden />
+        <div className="cash-pocket" aria-hidden>
+          <LeatherTexture />
+        </div>
       ) : (
-        <div className="slot-pocket" style={{ top: top + 50, zIndex: 4 + index * 4 }} aria-hidden />
+        <div className="slot-pocket" style={{ top: top + 50, zIndex: 4 + index * 4 }} aria-hidden>
+          <LeatherTexture />
+        </div>
       )}
     </>
   );
