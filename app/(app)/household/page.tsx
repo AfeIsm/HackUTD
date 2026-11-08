@@ -6,7 +6,7 @@ import { scoreHealth, monthly } from '@/lib/engine/health';
 import { dayDate, money, money0 } from '@/lib/format';
 import type { HouseholdMember } from '@/lib/types';
 import { DEMO_ASOF, PEOPLE, lookOf } from '@/lib/people';
-import { useHuddleStore } from '@/lib/huddles';
+import { useHuddles } from '@/lib/useHuddles';
 import { usePictures } from '@/lib/usePicture';
 import { useConnections } from '@/lib/useConnections';
 import { useViewer } from '@/lib/viewer';
@@ -33,7 +33,7 @@ export default function HouseholdPage() {
   const members = household?.members ?? [];
   const memberIds = members.flatMap((m) => (m.memberId ? [m.memberId] : []));
   const pictures = usePictures(members.filter(hasAccounts).map((m) => m.memberId as string));
-  const store = useHuddleStore();
+  const huddlesState = useHuddles();
   const pendingInvites = (data?.sent ?? []).filter((r) => r.kind === 'household' && r.status === 'pending');
   const incomingHousehold = (data?.incoming ?? []).filter((r) => r.kind === 'household');
 
@@ -97,7 +97,7 @@ export default function HouseholdPage() {
   const income = ready.reduce((s, p) => s + monthlyPay(p), 0);
   const essential = ready.reduce((s, p) => s + p.obligations.filter((o) => o.essential).reduce((x, o) => x + monthly(o), 0), 0);
   const savings = ready.reduce((s, p) => s + balanceOf(p, 'Savings'), 0);
-  const openHuddles = store.huddles.filter(
+  const openHuddles = (huddlesState.status === 'ready' ? huddlesState.huddles : []).filter(
     (h) => h.phase !== 'locked' && h.phase !== 'cancelled' && h.participants.some((p) => memberIds.includes(p.memberId)),
   );
 
