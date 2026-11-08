@@ -16,22 +16,22 @@ import { validCents } from '../engine/money';
 import { validDate } from '../engine/validation';
 import {
   type CoachNote, type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
-  newParticipant, payers, viewFor, applyLeave,
+  newParticipant, payers, viewFor, applyLeave, withOtherPledges,
 } from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
 import type { AgentStep, DeclineReason, FinancialPicture } from '@/lib/types';
 import { acceptProposal, maybeAutoSearch, rejectProposal, searchBlocked, settleReview, startReview, startSearch } from '../purchase/review';
 import type { PurchaseBrief, PurchaseSearch } from '../purchase/types';
 
-interface HuddleDoc extends Omit<Huddle, 'id'> {
+export interface HuddleDoc extends Omit<Huddle, 'id'> {
   _id: string;
   version: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const huddles = async () => (await getDb()).collection<HuddleDoc>('huddles');
-const fromDoc = (d: HuddleDoc): Huddle => ({
+export const huddles = async () => (await getDb()).collection<HuddleDoc>('huddles');
+export const fromDoc = (d: HuddleDoc): Huddle => ({
   id: d._id, name: d.name, totalCost: d.totalCost, targetDate: d.targetDate, createdBy: d.createdBy, phase: d.phase,
   round: d.round, message: d.message, lastDecline: d.lastDecline, fairSplit: d.fairSplit ?? null, participants: d.participants,
   brief: d.brief ?? null, search: d.search ?? null, review: d.review ?? null, selected: d.selected ?? null, searchRuns: d.searchRuns ?? 0,
@@ -50,7 +50,7 @@ const hasMoney = async (memberId: string) => PEOPLE.some((p) => p.id === memberI
 export interface FailedPledge { huddleId: string; name: string; pledge: number; sourceAccountId: string; goalId?: string; targetDate: string; advice: PledgeAdvice }
 
 export type ActionResult = { ok: true; failedPledge?: FailedPledge; startSearch?: { huddleId: string; runId: string } } | { ok: false; status: number; error: string };
-const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
+export const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
 
 /** Every huddle the viewer is in (joined or invited), privacy-filtered for them. */
 export async function listHuddles(memberId: string): Promise<HuddleClientView[]> {
@@ -114,12 +114,20 @@ export type HuddleAction =
   | { action: 'reviewProposal'; proposalId: string }
   | { action: 'respondProposal'; accept: boolean; reason?: string };
 
+/** This member's money, minus what they've already promised to their OTHER huddles. Private to them. */
+export async function pictureWithOtherPledges(memberId: string, huddleId: string): Promise<FinancialPicture | null> {
+  const { picture } = await buildPicture(memberId);
+  if (!picture) return null;
+  const docs = await (await huddles()).find({ participants: { $elemMatch: { memberId, committed: true } }, phase: { $ne: 'cancelled' } }).toArray();
+  return withOtherPledges(picture, docs.map(fromDoc), huddleId, DEMO_ASOF);
+}
+
 /** Each payer's capacity from THEIR picture; only the resulting amounts are stored. */
 async function computeFairSplit(h: Huddle): Promise<Record<string, number>> {
   const caps: Record<string, number> = {};
   for (const p of payers(h)) {
     if (!await hasMoney(p.memberId)) continue;
-    const { picture } = await buildPicture(p.memberId);
+    const picture = await pictureWithOtherPledges(p.memberId, h.id);
     if (picture) caps[p.memberId] = capacity(picture, h.targetDate, DEMO_ASOF);
   }
   return fairSplit(h.totalCost, caps);
@@ -132,6 +140,9 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const isCreator = h.createdBy === viewer.memberId;
   const inReview = 'Finish reviewing the proposal first.';
+  if ((a.action === 'leave' || a.action === 'delete') && h.participants.some((p) => p.transfer?.status === 'sent')) {
+    return fail(409, 'Money has already been transferred for this huddle, so it can’t be left or deleted.');
+  }
 
   switch (a.action) {
     case 'findOptions': {
@@ -172,7 +183,7 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
     case 'pledge': {
       if (!me.joined || !me.isPaying || !open) return fail(409, 'You can’t pledge right now.');
       if (!validCents(a.amount) || a.amount <= 0) return fail(400, 'Enter an amount.');
-      const { picture } = await buildPicture(me.memberId); // YOUR data only, checked here on the server
+      const picture = await pictureWithOtherPledges(me.memberId, h.id); // YOUR data only, checked here on the server
       if (!picture) return fail(404, 'No accounts found.');
       const pledge = { amount: a.amount, sourceAccountId: a.sourceAccountId, ...(a.goalId ? { goalId: a.goalId } : {}) };
       return applyPledge(h, me.memberId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF), pledgeAdvice(picture, pledge, h.targetDate, DEMO_ASOF));
@@ -248,10 +259,11 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
   const docs = await col.find({ participants: mine, phase: { $ne: 'cancelled' } }).toArray();
   let atRisk = 0;
   const newlyAtRisk: NewRisk[] = [];
+  const all = docs.map(fromDoc);
   for (const d of docs) {
     const p = d.participants.find((x) => x.memberId === memberId);
-    if (!p?.pledge || !p.sourceAccountId) continue;
-    const check = checkPledge(picture, {
+    if (!p?.pledge || !p.sourceAccountId || p.transfer?.status === 'sent') continue; // already sent: nothing left at risk
+    const check = checkPledge(withOtherPledges(picture, all, d._id, DEMO_ASOF), {
       amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}),
     }, d.targetDate, DEMO_ASOF);
     // Pledged despite a warning? They already know, so only flag it if the money is now gone.

@@ -6,7 +6,7 @@
 // Privacy (PLAN.md §8): during pledging others only see WHETHER you committed; after reveal
 // they see amounts. Your source account, health check result and feedback are never shared.
 
-import type { DeclineReason, HuddlePhase } from './types';
+import type { DeclineReason, FinancialPicture, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
 import type { PledgeAdvice } from './engine/pledgeAdvice';
 import type { Proposal, ProposalReview, PurchaseBrief, PurchaseSearch } from './purchase/types';
@@ -38,6 +38,7 @@ export interface Participant {
   advice?: PledgeAdvice | null; // PRIVATE: the engine's numbers for a pledge that failed its check
   coachState?: 'thinking' | 'ready' | 'unavailable' | null; // PRIVATE: Nemotron's advice on that pledge
   warning?: string | null; // PRIVATE: committed anyway, against this advice
+  transfer?: { status: 'sent'; at?: string; recordId?: string | null } | null; // "Transfer now": this IS the debit
 }
 
 export interface Huddle {
@@ -68,7 +69,24 @@ export const newParticipant = (memberId: string, userId: string | null, name: st
   atRisk: false, riskReason: null, riskScore: null, ...over,
 });
 
+/**
+ * Locking moves no money, so a balance alone can't show what someone has already promised.
+ * Their other live pledges count as reservations, for their own private checks only.
+ */
+export function withOtherPledges(p: FinancialPicture, huddles: Huddle[], thisHuddleId: string, asOf: string): FinancialPicture {
+  const promised = huddles.flatMap((h) => {
+    if (h.id === thisHuddleId || h.phase === 'cancelled' || h.targetDate < asOf) return [];
+    // Already sent? It's out of their balance, so counting it again would be double.
+    const mine = h.participants.find((x) => x.memberId === p.memberId && x.committed && x.pledge && x.sourceAccountId && x.transfer?.status !== 'sent');
+    if (!mine || !p.accounts.some((a) => a.id === mine.sourceAccountId && a.ownerMemberId === p.memberId)) return []; // stale account
+    const goalId = mine.goalId && p.goals.some((g) => g.id === mine.goalId && g.accountId === mine.sourceAccountId) ? mine.goalId : undefined;
+    return [{ id: `huddle:${h.id}`, sourceAccountId: mine.sourceAccountId as string, amount: mine.pledge as number, date: asOf, ...(goalId ? { goalId } : {}) }];
+  });
+  return promised.length ? { ...p, reservations: [...p.reservations, ...promised] } : p;
+}
+
 export const payers = (h: Huddle) => h.participants.filter((p) => p.isPaying);
+export const totalTransferred = (h: Huddle) => h.participants.reduce((s, p) => s + (p.transfer?.status === 'sent' ? p.pledge ?? 0 : 0), 0);
 export const totalPledged = (h: Huddle) => payers(h).reduce((s, p) => s + (p.committed ? p.pledge ?? 0 : 0), 0);
 
 export function advance(h: Huddle): Huddle {
@@ -166,6 +184,7 @@ export interface PublicParticipant {
   committed: boolean;
   pledge: number | null; // null until revealed
   agreed: boolean | null; // null until the agreeing phase
+  transferred: boolean; // pressed Transfer now
 }
 
 export interface HuddleClientView {
@@ -183,6 +202,7 @@ export interface HuddleClientView {
   payingCount: number;
   totalCommitted: number | null; // null while pledging
   shortfall: number | null; // null while pledging
+  transferredTotal: number;
   // Committed pledges that no longer pass the health check. A COUNT only: the group learns that a
   // commitment is at risk, never whose or why (PLAN.md §8). The person sees their own in `me`.
   atRiskCount: number;
@@ -238,7 +258,9 @@ export function viewFor(h: Huddle, viewerMemberId: string): HuddleClientView {
       committed: p.committed,
       pledge: revealed && p.committed ? p.pledge : null,
       agreed: h.phase === 'agreeing' || h.phase === 'locked' ? p.agreed : null,
+      transferred: p.transfer?.status === 'sent',
     })),
+    transferredTotal: totalTransferred(h),
     committedCount: ps.filter((p) => p.committed).length,
     payingCount: ps.length,
     totalCommitted: revealed ? total : null,

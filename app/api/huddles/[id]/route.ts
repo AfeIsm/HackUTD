@@ -7,7 +7,9 @@ import { after, NextResponse, type NextRequest } from 'next/server';
 import { requireViewer } from '@/lib/auth/viewer';
 import { coachFailedPledge } from '@/lib/agent/coach';
 import { runPurchaseAgent } from '@/lib/agent/purchase';
+import { runHealthCheck } from '@/lib/services/health';
 import { actOnHuddle, listHuddles, type HuddleAction } from '@/lib/services/huddle';
+import { transferPledge } from '@/lib/services/transfer';
 import type { DeclineReason } from '@/lib/types';
 
 // Long enough for Nemotron's background pledge advice (after()) to finish.
@@ -54,7 +56,14 @@ export async function POST(request: NextRequest, ctx: RouteContext<'/api/huddles
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
   const { id } = await ctx.params;
-  const action = parse((await request.json().catch(() => ({}))) as Record<string, unknown>);
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  if (body.action === 'transferNow') {
+    const sent = await transferPledge(viewer, id);
+    if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: sent.status });
+    await runHealthCheck(viewer.memberId, 'you transferred your huddle pledge');
+    return NextResponse.json({ huddles: await listHuddles(viewer.memberId) });
+  }
+  const action = parse(body);
   if (!action) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   const result = await actOnHuddle(viewer, id, action);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

@@ -15,8 +15,7 @@ import { evaluateOffer, REJECT_TEXT, type RejectReason } from '../purchase/evalu
 import { demoOffers } from '../purchase/fixtures';
 import { normalizeRentals, normalizeShopping, productParams, rentalParams, runSearch, safeQuery, type SearchResult } from '../purchase/serpapi';
 import type { Offer, Priced, Proposal, PurchaseBrief, PurchaseSearch } from '../purchase/types';
-import { appendSearchStep, finishSearch, getHuddle, saveBrief } from '../services/huddle';
-import { buildPicture } from '../services/picture';
+import { appendSearchStep, finishSearch, getHuddle, pictureWithOtherPledges, saveBrief } from '../services/huddle';
 import { NEMOTRON_MODEL, agentConfigured, nemotron } from './client';
 import { briefFromGuess, interpretPlan } from './plan';
 import { reviewPurchaseProposals } from '../reviewer/checkers/purchase-reviewer';
@@ -59,7 +58,7 @@ interface Known { id: string; offer: Offer; priced: Priced; fits?: boolean }
 async function groupSafeLimit(h: Huddle): Promise<number> {
   let sum = 0;
   for (const p of payers(h)) {
-    const { picture } = await buildPicture(p.memberId).catch(() => ({ picture: null }));
+    const picture = await pictureWithOtherPledges(p.memberId, h.id).catch(() => null);
     const safe = picture ? capacity(picture, h.targetDate, DEMO_ASOF) : 0;
     sum += Math.max(safe, p.committed ? p.pledge ?? 0 : 0); // capacity doesn't know about pledges already made
   }
