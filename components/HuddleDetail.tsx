@@ -51,6 +51,17 @@ export function HuddleDetail({ id }: { id: string }) {
     );
   }
 
+  // Browsers keep one login per site: a second account logging in elsewhere replaces this tab's.
+  if (h.me && h.me.memberId !== viewerId) {
+    return (
+      <Card className="flex flex-col gap-3">
+        <h1 className="m-0 text-[24px]">This browser switched accounts</h1>
+        <p className="m-0 text-ink-2">Another account logged in on this browser, so this tab can’t show your view anymore. To test two people at once, use a private window or a second browser for the other account.</p>
+        <button type="button" className={`${btn} self-start`} onClick={() => window.location.reload()}>Reload as the current account</button>
+      </Card>
+    );
+  }
+
   const run: Run = async (body) => {
     setBusy(true);
     const result = await huddleAction(h.id, body);
