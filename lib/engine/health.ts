@@ -111,6 +111,7 @@ export function scoreHealth(picture: FinancialPicture, opts: ScoreOptions): Heal
   const since = addDays(asOf, -30);
   const pulledPast = picture.txns
     .filter((t) => t.source === 'savings' && (t.kind === 'purchase' || t.kind === 'withdrawal'))
+    .filter((t) => !t.category?.startsWith('goal:')) // spending a goal's own money is fine
     .filter((t) => t.date >= since && t.date <= asOf)
     .reduce((s, t) => s + t.amount, 0);
   const pulled = pulledPast + plannedFromFree;

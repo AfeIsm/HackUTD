@@ -1,26 +1,41 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Wallet Whisperer design tokens (match the UI mockup) */
+@theme {
+  --color-bg: #f6f6f3;
+  --color-surface: #ffffff;
+  --color-ink: #16181d;
+  --color-ink-2: #3d424c;
+  --color-muted: #5b606b;
+  --color-line: #e3e3de;
+  --color-line-2: #cfcfc8;
+  --color-soft: #ecece7;
+  --color-hover: #f0f0ec;
+  --color-accent: #1f4fd8;
+  --color-accent-dark: #163ba6;
+  --color-accent-bg: #f3f6fe;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-good: #12703a;
+  --color-good-bg: #e3f4e8;
+  --color-good-ring: #1e8e4e;
+  --color-warn: #8a5300;
+  --color-warn-bg: #fdf1d8;
+  --color-warn-ring: #d48a0c;
+  --color-bad: #b4231b;
+  --color-bad-bg: #fbe4e2;
+  --color-bad-ring: #d2382e;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
 }
