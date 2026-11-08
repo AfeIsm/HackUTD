@@ -18,6 +18,8 @@ import type { Offer, Priced, Proposal, PurchaseBrief, PurchaseSearch } from '../
 import { appendSearchStep, finishSearch, getHuddle, pictureWithOtherPledges, saveBrief } from '../services/huddle';
 import { NEMOTRON_MODEL, agentConfigured, nemotron } from './client';
 import { briefFromGuess, interpretPlan } from './plan';
+import { reviewPurchaseProposals } from '../reviewer/checkers/purchase-reviewer';
+import { logReviewAudit } from '../reviewer/evaluator';
 
 const MAX_REQUESTS = 5;
 const MAX_REFINEMENTS = 3;
@@ -160,8 +162,18 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
     return k.fits;
   }
 
-  function saveWith(picks: { k: Known; why: unknown }[], summary: unknown) {
+  async function saveWith(picks: { k: Known; why: unknown }[], summary: unknown) {
     const proposals = picks.slice(0, MAX_PROPOSALS).map((p, i) => toProposal(p.k, runId, i + 1, p.why, brief.category === 'trip' ? budget : null));
+    
+    // Reviewer Agent audit on final proposals
+    const audit = reviewPurchaseProposals({
+      proposals: proposals.map((pr) => ({ title: pr.title, total: pr.total, why: pr.why })),
+      groupSafeLimit: limit ?? undefined,
+      explanationReason: typeof summary === 'string' ? summary : undefined,
+    });
+    void logReviewAudit(audit, undefined, `Huddle: ${h.name}`);
+    await step('tool', `Reviewer Agent audited proposals: Score ${audit.score}/100 (${audit.approved ? 'Approved ✓' : 'Flagged ⚠'}).`, 'review');
+
     return step('final', `Created ${proposals.length} ${proposals.length === 1 ? 'proposal' : 'proposals'}. Everyone now has to accept the top one.`, 'proposals')
       .then(() => finish({ status: 'done', proposals, summary: groupSafe(summary, 300) || null, usedDemo, noSolution: null }));
   }

@@ -141,6 +141,25 @@ export function AgentPanel({ onApplied }: { onApplied: (payload: HealthPayload, 
           {plan.explanation && <p className="m-0 text-[14px] text-ink-2"><span className="font-semibold">Nemotron:</span> {plan.explanation}</p>}
           {plan.notGreen.length > 0 && <p className="m-0 text-[13px] text-warn">Still not green after this: {plan.notGreen.join(' · ')}</p>}
           {plan.apply && <ApplyPlanButton plan={plan.apply} onApplied={onApplied} />}
+
+          {plan.review && (
+            <div className={`flex flex-col gap-1.5 rounded-lg border p-2.5 text-xs ${plan.review.approved ? 'border-good/30 bg-good-bg/30 text-ink' : 'border-warn/40 bg-warn-bg/30 text-warn'}`}>
+              <div className="flex items-center justify-between font-semibold">
+                <span className="flex items-center gap-1.5">
+                  🛡️ Reviewer Agent Audit: <span className={plan.review.approved ? 'text-good' : 'text-warn'}>{plan.review.approved ? 'Verified & Approved' : 'Flagged Discrepancies'}</span>
+                </span>
+                <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[11px] text-ink">{plan.review.score}/100</span>
+              </div>
+              {plan.review.flags.length > 0 ? (
+                <ul className="m-0 pl-4 text-[11px] text-bad">
+                  {plan.review.flags.map((f, i) => <li key={i}>{f}</li>)}
+                </ul>
+              ) : (
+                <span className="text-[11px] text-muted">Checked against user bank data, ground truth rules, and engine numbers. Zero hallucinations found.</span>
+              )}
+            </div>
+          )}
+
           <p className="m-0 text-xs text-muted">
             Score re-checked by our engine{answer?.cached ? ' · saved answer (same question, same data)' : ''} · {answer?.model}
           </p>
