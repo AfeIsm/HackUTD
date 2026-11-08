@@ -527,3 +527,17 @@ API/model research was performed on 7 November 2026. Documentation findings esta
 - [NVIDIA hosted API reference](https://docs.api.nvidia.com/nim/reference/llm-apis)
 - [HackUTD event tracks and schedule](https://zeroday.hackutd.co/)
 
+
+## Vercel deployment checks
+
+The GitHub repository is linked to the Vercel project `hack-utd`. Production deploys from `main`; other branches receive preview deployments. The production URL is https://hack-utd.vercel.app.
+
+Set `NESSIE_API_KEY`, `MONGODB_URI`, and `MONGODB_DB=walletwhisperer` in both **Production** and **Preview** environment scopes. Set `USE_LOCAL_DATA=false` to verify the live provider. Keep credentials in Vercel environment variables and ignored local environment files, never in Git. Environment changes require a new deployment.
+
+`GET /api/status` reports only `{ ok, mongodb, nessie }`, never credentials or financial records. It checks the shared MongoDB connection and a read in the selected database, and makes a read-only Nessie request without falling back to fixtures. HTTP 200 means both dependencies responded; HTTP 503 identifies an unavailable/unconfigured dependency or fixture mode. The route runs at request time, so a successful static build cannot conceal a runtime connection failure.
+
+After deployment, also open My Money, run a health check and reload. Confirm the application reports a saved result: the status endpoint checks connectivity, while the saved assessment confirms the real application write/read path. `GET /api/health?member=alex` currently exposes `saved`, `unchanged`, `source` and history for the synthetic demo. Session-bound access remains a separate planned change.
+
+Atlas must permit the Vercel runtime to connect. Check Atlas Network Access, database-user permissions and the URI's encoded password when a connection is unavailable. Do not reseed Nessie to diagnose deployment connectivity.
+
+Vercel previews require a commit author recognized by GitHub. If a deployment reports an invalid Mac-local email, configure `git config --local user.email` with the account’s verified commit email or GitHub-provided no-reply address, then push a new commit. This repository uses the GitHub no-reply identity for AfeIsm; previous commits do not need to be rewritten.

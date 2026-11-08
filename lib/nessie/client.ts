@@ -4,7 +4,7 @@
 import localData from './local.json';
 import type { MerchantMap, NessieAccount, NessieMember } from './picture';
 
-const BASE = 'https://api.nessieisreal.com';
+const BASE = process.env.NESSIE_BASE_URL ?? 'https://api.nessieisreal.com';
 
 interface LocalData {
   seededAt: string;
