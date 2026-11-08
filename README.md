@@ -539,3 +539,5 @@ Set `NESSIE_API_KEY`, `MONGODB_URI`, and `MONGODB_DB=walletwhisperer` in both **
 After deployment, also open My Money, run a health check and reload. Confirm the application reports a saved result: the status endpoint checks connectivity, while the saved assessment confirms the real application write/read path. `GET /api/health?member=alex` currently exposes `saved`, `unchanged`, `source` and history for the synthetic demo. Session-bound access remains a separate planned change.
 
 Atlas must permit the Vercel runtime to connect. Check Atlas Network Access, database-user permissions and the URI's encoded password when a connection is unavailable. Do not reseed Nessie to diagnose deployment connectivity.
+
+Vercel previews require a commit author recognized by GitHub. If a deployment reports an invalid Mac-local email, configure `git config --local user.email` with the account’s verified commit email or GitHub-provided no-reply address, then push a new commit. This repository uses the GitHub no-reply identity for AfeIsm; previous commits do not need to be rewritten.
