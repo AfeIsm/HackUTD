@@ -58,7 +58,7 @@ export default function HuddlesPage() {
   const valid = going.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
-    <PageShell id="huddles" title="Huddles" showDemoNotice={false}
+    <PageShell id="huddles" title="Huddles"
       intro="Plan a purchase together. Each person chooses what to contribute while keeping their finances private.">
       <div className="grid gap-6">
       {error && <p role="alert" className="rounded-lg bg-bad-bg px-4 py-3 text-sm text-bad">{error}</p>}
