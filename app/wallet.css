@@ -295,6 +295,7 @@ button.id-card:hover, button.id-card:focus-visible { transform: translateY(-8px)
 .page-header-face .card-face { padding: 0; }
 .page-header-face .card-title, .page-header-face .card-number, .page-header-face .card-brand, .page-header-face .biz-org, .page-header-face .biz-line, .page-header-face .biz-rule, .page-header-face .note-corner, .page-header-face .note-seal { display: none; }
 .page-header-face .card-chip { top: auto; bottom: 26px; left: auto; right: 34px; }
+.page-huddles .page-header-face .card-chip { z-index: 1; }
 .page-header-inner { position: relative; z-index: 2; padding: 24px 32px 32px; color: var(--paper); }
 .page-household .page-header-inner { color: var(--paper); }
 .page-buy .page-header-inner { color: var(--note-ink); }
