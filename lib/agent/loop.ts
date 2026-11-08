@@ -8,6 +8,9 @@ import { money0 } from '../format';
 import { NEMOTRON_MODEL, nemotron } from './client';
 import { TOOLS, afford, engineFixPlan, overview, runScenario, spending, type ScenarioInput } from './tools';
 import { judge, type Verdict } from './verdict';
+import type { ReviewResult } from '../reviewer/types';
+import { reviewCoachPlan } from '../reviewer/checkers/coach-reviewer';
+import { logReviewAudit } from '../reviewer/evaluator';
 
 export interface AgentPlan {
   verdict: Verdict; // decided by the engine's numbers (lib/agent/verdict.ts), not the AI
@@ -24,6 +27,7 @@ export interface AgentPlan {
   notGreen: string[];
   problems: string[];
   apply: { cancel: string[]; moveSavingsToChecking: number | null } | null; // what "Apply" can do (dollars)
+  review?: ReviewResult;
 }
 
 export interface AgentAnswer {
@@ -154,6 +158,25 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
           messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: plan.error }) });
           continue;
         }
+
+        // Reviewer Agent audit step
+        const review = reviewCoachPlan({
+          picture,
+          engineVerdict: plan.verdict,
+          proposedVerdict: plan.verdict,
+          summary: plan.summary,
+          explanation: plan.explanation,
+          recommendedActions: plan.actions,
+        });
+        plan.review = review;
+        void logReviewAudit(review, undefined, question);
+
+        push({
+          type: 'tool',
+          tool: 'reviewer_agent',
+          text: `Reviewer Agent audited plan: Score ${review.score}/100 (${review.approved ? 'Approved ✓' : 'Flagged ⚠'}). Flags: ${review.flags.length ? review.flags.join(', ') : 'none'}`,
+        });
+
         push({ type: 'final', tool: name, text: `Proposed a plan. The engine re-checked it: ${plan.headline}` });
         return done(plan, null);
       }
