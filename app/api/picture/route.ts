@@ -1,5 +1,5 @@
 // GET /api/picture            → the logged-in user's FinancialPicture
-// GET /api/picture?member=x   → someone else's, only if canSeePicture allows it (own household)
+// GET /api/picture?member=x   → someone else's, only if they're in your household
 // (Nessie data + purchases/tags they saved in the app, from MongoDB).
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (viewer instanceof NextResponse) return viewer;
   const memberId = request.nextUrl.searchParams.get('member') || viewer.memberId;
   if (!PEOPLE.some((p) => p.id === memberId)) return NextResponse.json({ error: 'Unknown member' }, { status: 404 });
-  if (!canSeePicture(viewer.memberId, memberId)) return NextResponse.json({ error: 'That’s private.' }, { status: 403 });
+  if (!(await canSeePicture(viewer, memberId))) return NextResponse.json({ error: 'That’s private.' }, { status: 403 });
   const { picture, source } = await buildPicture(memberId);
   return NextResponse.json({ picture, source });
 }

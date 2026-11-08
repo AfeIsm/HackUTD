@@ -42,4 +42,18 @@ export function getPerson(id: string): Person {
   return PEOPLE.find((p) => p.id === id) ?? PEOPLE[0];
 }
 
-export const HOUSEHOLD_IDS = ['alex', 'jordan', 'maya', 'leo'];
+export const HOUSEHOLD_IDS = ['alex', 'jordan', 'maya', 'leo']; // seed source only; real households live in Mongo
+
+// Household members without a login (kids), keyed by the owner's memberId.
+export const NO_LOGIN_MEMBERS: Record<string, { memberId: string; name: string; role: 'dependent' }[]> = {
+  alex: [{ memberId: 'leo', name: 'Leo', role: 'dependent' }],
+};
+
+const COLORS = ['#1F4FD8', '#6B4FBB', '#0F766E', '#B45309', '#3D424C', '#BE185D', '#4D7C0F'];
+/** Avatar initial + color for anyone (demo people keep their colors). */
+export function lookOf(name: string, memberId: string | null): { initial: string; color: string } {
+  const demo = PEOPLE.find((p) => p.id === memberId);
+  if (demo) return { initial: demo.initial, color: demo.color };
+  const hash = [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return { initial: (name[0] ?? '?').toUpperCase(), color: COLORS[hash % COLORS.length] };
+}

@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
-import { HOUSEHOLD_IDS, getPerson } from '@/lib/people';
-import { createHuddle, friendsOf, payers, respondToInvite, totalPledged, useHuddleStore } from '@/lib/huddles';
+import { PEOPLE, getPerson } from '@/lib/people';
+import { useConnections } from '@/lib/useConnections';
+import { createHuddle, payers, respondToInvite, totalPledged, useHuddleStore } from '@/lib/huddles';
 import { useViewer } from '@/lib/viewer';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
 
@@ -28,9 +29,14 @@ export default function HuddlesPage() {
   const invites = store.invites.filter((i) => i.toId === me.id && i.status === 'pending' && i.huddleId);
 
   // create form: household + accepted friends
-  const candidates = [...(me.role === 'friend' ? [me.id] : HOUSEHOLD_IDS), ...friendsOf(store, me.id)].filter(
-    (id, i, all) => all.indexOf(id) === i,
-  );
+  // (from Mongo: your household + accepted friends who have money data)
+  const conn = useConnections();
+  const connections = conn.status === 'ready' ? conn.data : null;
+  const candidates = [
+    me.id,
+    ...(connections?.household?.members ?? []).map((m) => m.memberId),
+    ...(connections?.friends ?? []).map((f) => f.memberId),
+  ].filter((id, i, all): id is string => !!id && PEOPLE.some((p) => p.id === id) && all.indexOf(id) === i);
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
