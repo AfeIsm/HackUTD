@@ -48,10 +48,13 @@ export default function HuddlesPage() {
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
-  const budget = useBudgetCheck(name, total, date, candidates.length);
+  const [coming, setComing] = useState<Record<string, boolean>>({});
+  const isComing = (id: string) => id === me.id || (coming[id] ?? true); // you're always in your own huddle
+  const going = candidates.filter(isComing);
+  const budget = useBudgetCheck(name, total, date, going.length);
   const [paying, setPaying] = useState<Record<string, boolean>>({});
   const isPaying = (id: string) => paying[id] ?? id !== 'leo';
-  const valid = candidates.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
+  const valid = going.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
     <>
@@ -133,7 +136,7 @@ export default function HuddlesPage() {
           setBusy(true);
           const res = await huddleRequest('/api/huddles', {
             name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date,
-            members: candidates.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
+            members: going.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
           });
           setBusy(false);
           setError(res.error);
@@ -157,29 +160,43 @@ export default function HuddlesPage() {
         </div>
         <BudgetNote state={budget.state} />
         <div className="flex flex-col">
-          <h3 className="m-0 mb-1 text-[17px]">Who’s coming</h3>
+          <h3 className="m-0 text-[17px]">Who’s coming</h3>
+          <p className="m-0 mb-1 text-[13px] text-muted">Uncheck anyone who isn’t coming. They won’t be added or invited.</p>
           {candidates.map((id) => {
             const p = personFor(id);
             const isFriend = connections?.friends.some((f) => f.memberId === id) ?? false;
             const on = isPaying(id);
+            const here = isComing(id);
             return (
               <div key={id} className="flex items-center gap-3.5 border-t border-[#EFEFEA] py-3">
+                <input
+                  type="checkbox"
+                  className="h-[18px] w-[18px] flex-none"
+                  checked={here}
+                  disabled={id === me.id}
+                  aria-label={`${p.name} is coming`}
+                  onChange={(e) => setComing({ ...coming, [id]: e.target.checked })}
+                />
                 <Avatar initial={p.initial} color={p.color} />
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className={`flex min-w-0 flex-1 flex-col ${here ? '' : 'opacity-50'}`}>
                   <span className="font-semibold">{p.id === me.id ? `${p.name} (you)` : p.name}</span>
-                  <span className="text-[13px] text-muted">{isFriend ? 'Friend · gets an invite' : p.roleLabel}</span>
+                  <span className="text-[13px] text-muted">{!here ? 'Not invited' : isFriend ? 'Friend · gets an invite' : p.roleLabel}</span>
                 </div>
-                <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={`${p.name} is paying`}
-                  onClick={() => setPaying({ ...paying, [id]: !on })}
-                  className={`relative h-[30px] w-[52px] flex-none cursor-pointer rounded-full border-0 p-0 ${on ? 'bg-accent' : 'bg-[#B9BDC6]'}`}
-                >
-                  <span className="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left]" style={{ left: on ? 25 : 3 }} />
-                </button>
+                {here ? (
+                  <>
+                    <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      aria-label={`${p.name} is paying`}
+                      onClick={() => setPaying({ ...paying, [id]: !on })}
+                      className={`relative h-[30px] w-[52px] flex-none cursor-pointer rounded-full border-0 p-0 ${on ? 'bg-accent' : 'bg-[#B9BDC6]'}`}
+                    >
+                      <span className="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left]" style={{ left: on ? 25 : 3 }} />
+                    </button>
+                  </>
+                ) : <span className="text-sm text-muted">Not coming</span>}
               </div>
             );
           })}
