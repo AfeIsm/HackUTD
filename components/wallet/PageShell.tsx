@@ -1,16 +1,14 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useMe } from '@/lib/useMe';
 import { CardFace } from './CardFace';
 import { type CardId } from './cards';
 import { useWallet } from './WalletContext';
 
-export function PageShell({ id, eyebrow, title, intro, actions, children, showDemoNotice = true }: {
-  id: CardId; eyebrow?: string; title: ReactNode; intro?: ReactNode; actions?: ReactNode; children: ReactNode; showDemoNotice?: boolean;
+export function PageShell({ id, eyebrow, title, intro, actions, children }: {
+  id: CardId; eyebrow?: string; title: ReactNode; intro?: ReactNode; actions?: ReactNode; children: ReactNode;
 }) {
   const w = useWallet();
-  const me = useMe();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [id]);
   return (
@@ -27,7 +25,6 @@ export function PageShell({ id, eyebrow, title, intro, actions, children, showDe
           </div>
         </header>
         <div className="page-body">
-          {showDemoNotice && me.status === 'in' && me.user.memberId?.startsWith('user-') && <p className="text-xs text-muted">Demo finances · synthetic Nessie banking data · assessment date November 7, 2026</p>}
           {children}
         </div>
       </article>
