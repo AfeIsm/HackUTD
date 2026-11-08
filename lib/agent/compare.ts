@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { AgentStep, FinancialPicture } from '../types';
+import { dataHash } from '../engine/hash';
 import { DEMO_ASOF } from '../people';
 import { buildBuyScenarios, type BuyScenario } from './buyScenarios';
-import { buyAnswerId, runBuyOptions, savedBuyAnswer, type BuyQuestion, type BuyResult } from './buyOptions';
+import type { BuyQuestion } from './buyOptions';
 import { recommendComparison } from './comparisonAgent';
 import type { ComparisonRecommendation } from './comparisonPolicy';
 
@@ -14,6 +16,11 @@ export type ComparisonEvent =
 const cache = new Map<string, { events: ComparisonEvent[]; expires: number }>();
 const active = new Map<string, { events: ComparisonEvent[]; listeners: Set<(event: ComparisonEvent) => void>; done: Promise<void> }>();
 const runs = new Map<string, number[]>();
+export function comparisonId(memberId: string, picture: FinancialPicture, purchase: BuyQuestion | BuyQuestion[]): string {
+  const purchases = Array.isArray(purchase) ? purchase : [purchase];
+  const hash = createHash('sha256').update(JSON.stringify([memberId, dataHash(picture), purchases.map((item) => [item.label, item.cost, item.date, item.sourceAccountId, item.goalId ?? ''])])).digest('hex');
+  return `purchase-basket-v1:${hash}`;
+}
 export function comparisonCached(id: string) { return (cache.get(id)?.expires ?? 0) > Date.now() || active.has(id); }
 export function reserveComparisonRun(memberId: string): boolean {
   const recent = (runs.get(memberId) ?? []).filter((time) => time > Date.now() - 600_000);
@@ -24,8 +31,8 @@ export function reserveComparisonRun(memberId: string): boolean {
 }
 
 /** A bounded cache and single flight keep popup reopening from repeating a paid agent run. */
-export async function runComparison(memberId: string, picture: FinancialPicture, purchase: BuyQuestion, send: (event: ComparisonEvent) => void): Promise<void> {
-  const id = buyAnswerId(memberId, picture, purchase);
+export async function runComparison(memberId: string, picture: FinancialPicture, purchase: BuyQuestion | BuyQuestion[], send: (event: ComparisonEvent) => void): Promise<void> {
+  const id = comparisonId(memberId, picture, purchase);
   const saved = cache.get(id);
   if (saved && saved.expires > Date.now()) { saved.events.forEach(send); return; }
   const existing = active.get(id);
@@ -34,22 +41,12 @@ export async function runComparison(memberId: string, picture: FinancialPicture,
   const emit = (event: ComparisonEvent) => { entry.events.push(event); entry.listeners.forEach((listener) => listener(event)); };
   entry.done = Promise.resolve().then(async () => {
     try {
-      emit({ type: 'scenarios', scenarios: buildBuyScenarios(picture, purchase, [], DEMO_ASOF) });
-      emit({ type: 'step', step: { type: 'plan', text: 'Checking purchase timing, searching for alternatives and comparing financial impact.' } });
-      const savedSearch = await savedBuyAnswer(id).catch(() => null);
-      let search: BuyResult | null = savedSearch?.result ?? null;
-      let searchMessage: string | null = null;
-      if (!search) await runBuyOptions(memberId, id, picture, purchase, (event) => {
-        if (event.type === 'step') emit(event);
-        if (event.type === 'done') search = event.result;
-        if (event.type === 'error') searchMessage = event.error;
-      }).catch(() => { if (!search) searchMessage = 'Live listings could not be checked. The available scenarios are still verified by the engine.'; });
-      const found = search as BuyResult | null;
-      const scenarios = buildBuyScenarios(picture, purchase, found?.proposals ?? [], DEMO_ASOF);
+      const scenarios = buildBuyScenarios(picture, purchase, DEMO_ASOF);
       emit({ type: 'scenarios', scenarios });
+      emit({ type: 'step', step: { type: 'plan', text: 'Checking the combined effect of buying as planned, waiting for payday or keeping your money.' } });
       const recommendation = await recommendComparison(scenarios, (step) => emit({ type: 'step', step }));
-      emit({ type: 'done', recommendation, searchMessage: searchMessage ?? found?.noSolution ?? null });
-      if (recommendation.source === 'nemotron' && found && !found.usedDemo && !found.noSolution && !searchMessage) {
+      emit({ type: 'done', recommendation, searchMessage: null });
+      if (recommendation.source === 'nemotron') {
         if (cache.size >= 100) cache.delete(cache.keys().next().value!);
         cache.set(id, { events: entry.events, expires: Date.now() + 3_600_000 });
       }
