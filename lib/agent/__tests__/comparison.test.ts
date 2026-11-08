@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { alex, ASOF } from '../../engine/__tests__/fixtures';
+import { alex, ASOF, lowEssentials } from '../../engine/__tests__/fixtures';
 import { buildBuyScenarios } from '../buyScenarios';
 import { canRecommend, checkedRecommendation, engineRecommendation } from '../comparisonPolicy';
 const mocks = vi.hoisted(() => ({ create: vi.fn(), configured: vi.fn() }));
 vi.mock('../client', () => ({ NEMOTRON_MODEL: 'test-model', agentConfigured: mocks.configured, nemotron: () => ({ chat: { completions: { create: mocks.create } } }) }));
 import { recommendComparison } from '../comparisonAgent';
-const picture = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) };
+const picture = lowEssentials({ ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) });
 const question = { label: 'Console', cost: 90000, sourceAccountId: 'a1', date: ASOF };
 const scenarios = () => buildBuyScenarios(picture, question, ASOF);
 const reply = (name: string, args: object) => ({ choices: [{ message: { content: null, tool_calls: [{ id: `call-${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } }] });

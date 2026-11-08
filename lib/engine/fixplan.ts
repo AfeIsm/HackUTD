@@ -5,18 +5,17 @@
 // Levers, smallest disruption first:
 //   1. Cancel non-essential subscriptions (each cut is a scored cancelObligation change).
 //   2. Move free savings (never goal money) into the checking account that dips lowest, just
-//      enough to stop it going negative or to keep the $200 buffer. Applied to the balances
+//      enough to stop it going negative or to reach the 10-day buffer. Applied to the balances
 //      themselves, so the safety cushion honestly shrinks by the same amount.
 //   3. A weekly savings target toward a 3-month cushion, sized so bills stay covered.
 
 import type { Change, FinancialPicture, FixPlan, FixStep, HealthResult } from '../types';
 import { money0, shortDate } from '../format';
 import { forecastBalance } from './forecast';
-import { monthly, scoreHealth } from './health';
+import { billsTarget, monthly, scoreHealth } from './health';
 import { freeSavings } from './source';
 import { addDays } from './dates';
 
-const BUFFER = 20_000; // the essential-bills indicator's green buffer ($200)
 const MAX_SUBS = 6; // 2^6 = 64 combinations, each scored a few times: cheap and exhaustive
 const CUSHION_MONTHS = 3;
 const SAVE_WEEKS = 26;
@@ -86,7 +85,7 @@ export function buildFixPlan(p: FinancialPicture, asOf: string): FixPlan | null 
     const low = checkingIds.length ? lowestChecking(p, checkingIds, changes, asOf) : undefined;
     const moves = new Set([0]);
     if (savings && low && savings.free > 0) {
-      for (const need of [-low.balance, BUFFER - low.balance]) {
+      for (const need of [-low.balance, billsTarget(p.obligations) - low.balance]) {
         const amount = roundUp10(need);
         if (need > 0 && amount <= savings.free) moves.add(amount);
       }

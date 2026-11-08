@@ -5,12 +5,13 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ForecastPoint } from '@/lib/types';
-import { money, shortDate } from '@/lib/format';
+import { money, money0, shortDate } from '@/lib/format';
+import { COVERED_DAYS } from '@/lib/engine/health';
 import './ForecastChart.css';
 
 const H = 292;
 const M = { top: 24, right: 24, bottom: 36, left: 64 };
-const BUFFER = 20_000; // the $200 line the health score uses
+const buffer_NAME = `${COVERED_DAYS}-day buffer`;
 
 function niceStep(spanCents: number): number {
   const rough = spanCents / 4;
@@ -29,7 +30,7 @@ const signed = (cents: number) => `${cents > 0 ? '+' : '−'}${money(Math.abs(ce
 const TEXT = { fontSize: 12, fill: 'var(--muted-foreground)', fontVariantNumeric: 'tabular-nums' } as const;
 const HALO = { paintOrder: 'stroke', stroke: 'var(--paper)', strokeWidth: 4, strokeLinejoin: 'round' } as const;
 
-export function ForecastChart({ points, accountName = 'checking', showBuffer = true }: { points: ForecastPoint[]; accountName?: string; showBuffer?: boolean }) {
+export function ForecastChart({ points, accountName = 'checking', showBuffer = true, buffer = 0 }: { points: ForecastPoint[]; accountName?: string; showBuffer?: boolean; buffer?: number }) {
   const id = useId();
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -53,7 +54,7 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
   const shown = hover !== null && points[hover] ? hover : selected;
   const active = points[shown];
   const change = shown === 0 ? null : active.balance - points[shown - 1].balance;
-  const lowColor = low.balance < 0 ? 'var(--risk)' : showBuffer && low.balance < BUFFER ? 'var(--watch)' : 'var(--good)';
+  const lowColor = low.balance < 0 ? 'var(--risk)' : showBuffer && low.balance < buffer ? 'var(--watch)' : 'var(--good)';
   const highlights = [
     { name: 'Starting balance', index: 0, color: 'var(--pnc-blue)' },
     { name: 'Lowest balance', index: lowIndex, color: lowColor },
@@ -63,7 +64,7 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
     const change = i === 0 ? null : p.balance - points[i - 1].balance;
     return i === 0 || change !== 0 ? [{ ...p, change }] : [];
   });
-  const label = `Projected balance for ${accountName} over ${points.length - 1} days. Lowest ${money(low.balance)} on ${shortDate(low.date)}.${showBuffer ? ' The dashed line marks the $200 buffer.' : ''}`;
+  const label = `Projected balance for ${accountName} over ${points.length - 1} days. Lowest ${money(low.balance)} on ${shortDate(low.date)}.${showBuffer ? ` The dashed line marks the ${buffer_NAME} of ${money0(buffer)}.` : ''}`;
 
   const summary = <>
     <div className="forecast-highlights">
@@ -78,10 +79,10 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
     </div>
     <div className="forecast-legend">
       <span className="forecast-outlook" style={{ color: lowColor }}>
-        <span aria-hidden="true">{low.balance < 0 || (showBuffer && low.balance < BUFFER) ? '!' : '✓'}</span>
-        {low.balance < 0 ? 'Balance goes below $0' : !showBuffer ? 'Balance stays at or above $0' : low.balance < BUFFER ? 'Dips below your $200 buffer' : 'Keeps at least a $200 buffer'}
+        <span aria-hidden="true">{low.balance < 0 || (showBuffer && low.balance < buffer) ? '!' : '✓'}</span>
+        {low.balance < 0 ? 'Balance goes below $0' : !showBuffer ? 'Balance stays at or above $0' : low.balance < buffer ? `Dips below your ${buffer_NAME}` : `Keeps at least a ${buffer_NAME}`}
       </span>
-      {showBuffer && <>{' '}<span className="forecast-legend-item"><span className="forecast-buffer-key" aria-hidden="true" />$200 buffer</span></>}
+      {showBuffer && <>{' '}<span className="forecast-legend-item"><span className="forecast-buffer-key" aria-hidden="true" />{buffer_NAME} ({money0(buffer)})</span></>}
     </div>
   </>;
   const table = (
@@ -105,7 +106,7 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
   const plotW = Math.max(1, width - M.left - M.right);
   const plotH = H - M.top - M.bottom;
   const rawLow = Math.min(...values, 0);
-  const rawHigh = Math.max(...values, showBuffer ? BUFFER : 100);
+  const rawHigh = Math.max(...values, showBuffer ? buffer : 100);
   const step = niceStep(rawHigh - rawLow);
   const lo = Math.floor(rawLow / step) * step;
   const hi = Math.ceil((rawHigh + step * 0.25) / step) * step;
@@ -147,7 +148,7 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
               <stop offset="100%" stopColor="var(--pnc-blue)" stopOpacity="0.02" />
             </linearGradient>
           </defs>
-          {showBuffer && <rect x={M.left} y={y(BUFFER)} width={plotW} height={y(0) - y(BUFFER)} fill="var(--watch)" opacity="0.08" />}
+          {showBuffer && <rect x={M.left} y={y(buffer)} width={plotW} height={y(0) - y(buffer)} fill="var(--watch)" opacity="0.08" />}
           {lo < 0 && <rect x={M.left} y={y(0)} width={plotW} height={y(lo) - y(0)} fill="var(--risk)" opacity="0.07" />}
           {yTicks.map((t) => <g key={t}>
             {t !== 0 && <line x1={M.left} x2={width - M.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 5" />}
@@ -157,10 +158,10 @@ export function ForecastChart({ points, accountName = 'checking', showBuffer = t
 
           <path d={area} fill={`url(#${id}-fill)`} />
           <line x1={M.left} x2={width - M.right} y1={y(0)} y2={y(0)} stroke={lo < 0 ? 'var(--risk)' : 'var(--border)'} strokeWidth="1.5" />
-          {showBuffer && <line x1={M.left} x2={width - M.right} y1={y(BUFFER)} y2={y(BUFFER)} stroke="var(--watch)" strokeWidth="1.5" strokeDasharray="6 5" />}
+          {showBuffer && <line x1={M.left} x2={width - M.right} y1={y(buffer)} y2={y(buffer)} stroke="var(--watch)" strokeWidth="1.5" strokeDasharray="6 5" />}
           <path d={line} fill="none" stroke="var(--pnc-blue)" strokeWidth="10" strokeOpacity="0.07" strokeLinejoin="round" />
           <path d={line} fill="none" stroke="var(--pnc-blue)" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
-          {showBuffer && <text x={width - M.right - 2} y={y(BUFFER) - 6} textAnchor="end" style={{ ...TEXT, ...HALO }}>$200 buffer</text>}
+          {showBuffer && <text x={width - M.right - 2} y={y(buffer) - 6} textAnchor="end" style={{ ...TEXT, ...HALO }}>{buffer_NAME}</text>}
 
           <circle cx={x(0)} cy={y(values[0])} r="4" fill="var(--paper)" stroke="var(--pnc-blue)" strokeWidth="2" />
           <circle cx={x(points.length - 1)} cy={y(end.balance)} r="4" fill="var(--paper)" stroke="var(--pnc-blue)" strokeWidth="2" />

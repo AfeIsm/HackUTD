@@ -11,6 +11,7 @@ import { invalidatePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { AddPurchase, type NewPurchase } from '@/components/AddPurchase';
 import { ForecastChart } from '@/components/ForecastChart';
+import { billsTarget } from '@/lib/engine/health';
 import { IndicatorList } from '@/components/IndicatorList';
 import { ObligationsList } from '@/components/ObligationsList';
 import { ScoreGauge } from '@/components/ScoreGauge';
@@ -232,7 +233,7 @@ export default function DashboardPage() {
             <div key={a.id}>
               {checking.length > 1 && <h3 className="text-sm">{a.nickname}</h3>}
               {(result.accountForecasts[a.id]?.length ?? 0) > 1
-                ? <ForecastChart points={result.accountForecasts[a.id]} />
+                ? <ForecastChart points={result.accountForecasts[a.id]} buffer={billsTarget(picture.obligations)} />
                 : <p className="text-sm text-muted">Needs input — a forecast is not available for {a.nickname} yet.</p>}
             </div>
           ))}
