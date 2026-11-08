@@ -35,6 +35,8 @@ export function dataHash(picture: FinancialPicture): string {
     obligations: sortedBy(picture.obligations, (o) => o.key),
     paycheck: picture.paycheck,
     goals: sortedBy(picture.goals, (g) => g.id),
+    reservations: sortedBy(picture.reservations, (r) => r.id),
+    missingInputs: [...picture.missingInputs].sort(),
   };
   const text = stableStringify(normalized);
   return fnv1a(text, 0x811c9dc5) + fnv1a(text, 0x9e3779b9);

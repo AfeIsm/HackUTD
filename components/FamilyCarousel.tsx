@@ -145,7 +145,7 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
             <Avatar initial={s.initial} color={s.color} size={32} />
             <span className="flex-1 font-semibold">{s.name}</span>
             <span className={`font-display font-bold ${s.result ? TONE[s.result.overall].pill.split(' ')[1] : 'text-muted'}`}>
-              {s.result ? s.result.score : '—'}
+              {s.result ? (s.result.score ?? '—') : '—'}
             </span>
           </button>
         ))}
@@ -167,7 +167,7 @@ function SlideBody({ s }: { s: FamilySlide }) {
           </div>
         </div>
         <div className="flex items-baseline gap-3">
-          <span className="font-display text-[64px] font-bold leading-none">{s.loading ? '…' : s.result ? s.result.score : '—'}</span>
+          <span className="font-display text-[64px] font-bold leading-none">{s.loading ? '…' : s.result ? (s.result.score ?? '—') : '—'}</span>
           {s.result && <StatusPill status={s.result.overall} />}
         </div>
         <p className="m-0 text-sm leading-normal text-ink-2">{s.summary}</p>

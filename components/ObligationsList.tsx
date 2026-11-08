@@ -1,7 +1,8 @@
+import { monthly } from '@/lib/engine/health';
 import type { Obligation } from '@/lib/types';
 import { cadenceLabel, money, money0, shortDate } from '@/lib/format';
 
-const ORIGIN_LABEL: Record<Obligation['origin'], string> = { bill: 'bill', loan: 'loan', detected: 'detected' };
+const ORIGIN_LABEL: Record<Obligation['origin'], string> = { cardMinimum: 'Confirmed minimum', bill: 'bill', loan: 'loan', detected: 'detected' };
 
 export function ObligationsList({
   obligations,
@@ -10,7 +11,7 @@ export function ObligationsList({
   obligations: Obligation[];
   onToggle: (key: string) => void;
 }) {
-  const essentialMonthly = obligations.filter((o) => o.essential).reduce((s, o) => s + o.amount, 0);
+  const essentialMonthly = obligations.filter((o) => o.essential).reduce((s, o) => s + monthly(o), 0);
   return (
     <div className="flex flex-col">
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
@@ -39,7 +40,7 @@ export function ObligationsList({
           </button>
         </div>
       ))}
-      <p className="mt-1.5 text-xs text-muted">Tap a tag to change it. Essential bills count toward “Essential bills covered”.</p>
+      <p className="mt-1.5 text-xs text-muted">Tap a tag to change it. All scheduled expenses count toward coverage; essential tags also determine your safety cushion.</p>
     </div>
   );
 }

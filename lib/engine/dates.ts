@@ -28,3 +28,16 @@ export function addMonths(date: string, months: number): string {
   target.setUTCDate(Math.min(d, lastDay));
   return target.toISOString().slice(0, 10);
 }
+
+export function nextSemiMonthly(date: string, days: [number, number]): string {
+  const [y, m] = date.split('-').map(Number);
+  for (let offset = 0; offset <= 1; offset++) {
+    const month = new Date(Date.UTC(y, m - 1 + offset, 1));
+    const last = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
+    for (const day of days) {
+      const candidate = `${month.toISOString().slice(0, 7)}-${String(Math.min(day, last)).padStart(2, '0')}`;
+      if (candidate > date) return candidate;
+    }
+  }
+  throw new Error('Invalid semi-monthly schedule');
+}

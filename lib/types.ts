@@ -1,17 +1,20 @@
-// lib/types.ts: shared contract. Only the Lead edits this file.
-// Need a new field? Ask the Lead.
+// Shared financial contract. All monetary numbers are integer cents.
+// Convert provider dollars and form input at the boundary; format cents only for display.
+export type MoneyCents = number;
 
 // ---------- Basics ----------
-export type Status = 'green' | 'yellow' | 'red';
+export type Status = 'green' | 'yellow' | 'red' | 'needsInput';
 export type Source = 'checking' | 'savings';
 
 // ---------- Money data (from Nessie) ----------
 export interface Account {
   id: string;
+  ownerMemberId: string;
   type: 'Checking' | 'Savings' | 'Credit Card';
   nickname: string;
-  balance: number;
-  limit?: number; // credit cards only
+  balance: MoneyCents;
+  limit?: MoneyCents; // credit cards only
+  minimumPayment?: MoneyCents; // confirmed metadata; never inferred from the balance
 }
 
 export interface Txn {
@@ -19,22 +22,24 @@ export interface Txn {
   accountId: string;
   source?: Source;
   kind: 'purchase' | 'deposit' | 'withdrawal' | 'transfer';
-  amount: number;
+  amount: MoneyCents;
   date: string; // YYYY-MM-DD
   description: string;
   merchant?: string;
   category?: string;
+  goalAllocationUsed?: MoneyCents; // recorded portion paid from a matching earmark
 }
 
 // Bills + loans + subscriptions, ONE list
 export interface Obligation {
+  accountId: string;
   key: string;
   name: string;
-  amount: number;
+  amount: MoneyCents;
   nextDate: string; // YYYY-MM-DD
   cadence: 'weekly' | 'biweekly' | 'monthly';
   essential: boolean;
-  origin: 'bill' | 'loan' | 'detected';
+  origin: 'bill' | 'loan' | 'detected' | 'cardMinimum';
 }
 
 // User override of an obligation's essential tag
@@ -46,32 +51,46 @@ export interface ObligationTag {
 // Engine inputs. Backend maps raw Nessie bills/loans into these,
 // so the engine never depends on Nessie's field names.
 export interface Bill {
+  accountId: string;
   id: string;
   payee: string;
-  amount: number;
+  amount: MoneyCents;
   nextDate: string; // YYYY-MM-DD
   cadence?: Obligation['cadence']; // defaults to monthly
   category?: string;
 }
 
 export interface Loan {
+  accountId: string;
   id: string;
   type: string; // e.g. "car", "student"
-  monthlyPayment: number;
+  monthlyPayment: MoneyCents;
   nextDate: string; // YYYY-MM-DD
 }
 
 export interface Paycheck {
-  avgAmount: number;
+  accountId: string;
+  avgAmount: MoneyCents;
   cadenceDays: number;
+  // Semi-monthly uses calendar days, rather than repeating every 15 days.
+  semiMonthlyDays?: [number, number];
   nextDate: string; // YYYY-MM-DD
 }
 
 export interface SavingsGoal {
+  accountId: string;
   id: string;
   name: string;
-  amount: number;
+  amount: MoneyCents;
   huddleId?: string;
+}
+
+export interface Reservation {
+  id: string;
+  sourceAccountId: string;
+  amount: MoneyCents;
+  date: string;
+  goalId?: string;
 }
 
 // Everything about one person: the engine's main input
@@ -82,6 +101,8 @@ export interface FinancialPicture {
   obligations: Obligation[];
   paycheck: Paycheck | null; // null = no paycheck detected
   goals: SavingsGoal[];
+  reservations: Reservation[];
+  missingInputs: string[];
 }
 
 // ---------- Health score (engine output) ----------
@@ -96,24 +117,26 @@ export interface Indicator {
   key: IndicatorKey;
   label: string;
   weight: number; // 40, 20, 15, 15, 10
-  value: number; // raw number, e.g. 106.4
+  value: number | null; // money values are cents; ratios are dimensionless
   display: string; // formatted, e.g. "$106"
   status: Status;
-  points: 0 | 50 | 100;
+  points: 0 | 50 | 100 | null;
   explanation: string;
 }
 
 export interface ForecastPoint {
   date: string; // YYYY-MM-DD
-  balance: number;
+  balance: MoneyCents;
 }
 
 export interface HealthResult {
   memberId: string;
-  score: number;
+  score: number | null;
   overall: Status;
   indicators: Indicator[];
   forecast: ForecastPoint[];
+  accountForecasts: Record<string, ForecastPoint[]>;
+  missingInputs: string[];
   dataHash: string; // same data → same hash
   checkedAt: string; // ISO timestamp
   trigger: string; // what caused this check
@@ -121,18 +144,14 @@ export interface HealthResult {
 }
 
 // ---------- What-ifs (Can I buy, fix plans) ----------
-// A hypothetical change the engine simulates. Meaning of each kind:
-//   oneTime  : `amount` leaves `source` (default checking) on `date` (default today).
-//   weekly   : same, every 7 days starting `date` (default 7 days from today).
-//   monthly  : same, every month starting `date` (default 1 month from today).
-//              Negative amount = money that stops leaving (e.g. "cut dining $35/wk" = -35).
-//   With goalId: the money moves INTO savings for that goal instead of being spent
-//              (e.g. "set aside $45/week for the PS6 fund").
-//   cancelObligation : stop paying `obligationKey` from `date` (default today); amount ignored.
+// Hypothetical flows always name an exact account. goalId on a purchase consumes
+// that account's earmark; it does not add money to savings. Saving is an explicit
+// transfer using destinationAccountId. Cancellation has no monetary flow.
 export interface Change {
   kind: 'oneTime' | 'weekly' | 'monthly' | 'cancelObligation';
-  amount: number;
-  source?: Source;
+  amount: MoneyCents;
+  sourceAccountId?: string; // required for every monetary change
+  destinationAccountId?: string; // explicit internal transfer
   date?: string;
   label: string;
   goalId?: string;
@@ -142,18 +161,23 @@ export interface Change {
 export interface AffordResult {
   verdict: 'yes' | 'yesIf' | 'no';
   reason: string;
-  scoreBefore: number;
-  scoreAfter: number;
+  scoreBefore: number | null;
+  scoreAfter: number | null;
   weeklySavingsNeeded?: number;
   readyDate?: string;
   flags: string[];
+  missingInputs: string[];
+  sourceAccountId: string;
+  before: HealthResult;
+  after: HealthResult;
+  verifiedAlternative?: { date: string; sourceAccountId: string; result: HealthResult };
 }
 
 export interface FixPlan {
   summary: string;
   changes: Change[];
-  scoreBefore: number;
-  scoreAfter: number;
+  scoreBefore: number | null;
+  scoreAfter: number | null;
   dataHash: string; // reused while the hash matches
 }
 
@@ -174,7 +198,7 @@ export interface HuddleParticipantPublic {
 export interface HuddleView {
   id: string;
   name: string;
-  totalCost: number;
+  totalCost: MoneyCents;
   targetDate: string;
   phase: HuddlePhase;
   round: number;
@@ -186,7 +210,7 @@ export interface HuddleView {
   // ONLY the viewer's own private data
   me: {
     pledge: number | null;
-    source: Source | null;
+    sourceAccountId: string | null;
     checkPassed: boolean | null;
     privateFeedback: FixPlan | null;
   };
