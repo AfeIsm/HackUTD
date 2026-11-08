@@ -43,6 +43,24 @@ export interface ObligationTag {
   essential: boolean;
 }
 
+// Engine inputs. Backend maps raw Nessie bills/loans into these,
+// so the engine never depends on Nessie's field names.
+export interface Bill {
+  id: string;
+  payee: string;
+  amount: number;
+  nextDate: string; // YYYY-MM-DD
+  cadence?: Obligation['cadence']; // defaults to monthly
+  category?: string;
+}
+
+export interface Loan {
+  id: string;
+  type: string; // e.g. "car", "student"
+  monthlyPayment: number;
+  nextDate: string; // YYYY-MM-DD
+}
+
 export interface Paycheck {
   avgAmount: number;
   cadenceDays: number;
@@ -103,6 +121,14 @@ export interface HealthResult {
 }
 
 // ---------- What-ifs (Can I buy, fix plans) ----------
+// A hypothetical change the engine simulates. Meaning of each kind:
+//   oneTime  : `amount` leaves `source` (default checking) on `date` (default today).
+//   weekly   : same, every 7 days starting `date` (default 7 days from today).
+//   monthly  : same, every month starting `date` (default 1 month from today).
+//              Negative amount = money that stops leaving (e.g. "cut dining $35/wk" = -35).
+//   With goalId: the money moves INTO savings for that goal instead of being spent
+//              (e.g. "set aside $45/week for the PS6 fund").
+//   cancelObligation : stop paying `obligationKey` from `date` (default today); amount ignored.
 export interface Change {
   kind: 'oneTime' | 'weekly' | 'monthly' | 'cancelObligation';
   amount: number;
@@ -110,6 +136,7 @@ export interface Change {
   date?: string;
   label: string;
   goalId?: string;
+  obligationKey?: string;
 }
 
 export interface AffordResult {
