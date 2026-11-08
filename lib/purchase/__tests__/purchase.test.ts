@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { type Huddle, newParticipant, viewFor } from '../../huddles';
-import { groupSafe } from '../../agent/purchase';
+import { groupSafe, soloSafe } from '../../agent/purchase';
 import { briefFromGuess, cleanGuess } from '../../agent/plan';
 import { evaluateOffer, parseDelivery } from '../evaluate';
 import { demoOffers } from '../fixtures';
 import { acceptProposal, maybeAutoSearch, rejectProposal, startReview, startSearch } from '../review';
 import { normalizeRentals, normalizeShopping, productParams, rentalParams, safeQuery } from '../serpapi';
+
+describe('soloSafe', () => {
+  it('keeps model numbers and verified prices', () => {
+    expect(soloSafe('The WH-1000XM5 is well under the $450 budget.', [45000])).toBe('The WH-1000XM5 is well under the $450 budget.');
+  });
+  it('drops a sentence with a figure nobody verified', () => {
+    expect(soloSafe('Great pick. It saves you $90 a year.', [45000])).toBe('Great pick.');
+    expect(soloSafe('Lasts 30 days on a charge.', [45000])).toBe('');
+  });
+});
 import { judgeBudget, priceRange } from '../viability';
 import type { Offer, Proposal, PurchaseBrief } from '../types';
 
