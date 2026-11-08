@@ -25,13 +25,13 @@ export function AddByUsername({ kind, title, help }: { kind: 'friend' | 'househo
   return (
     <form
       aria-label={title}
-      className="box-border flex flex-[1_1_360px] flex-col gap-4 rounded-[14px] border border-line bg-surface p-6"
+      className={`${kind === 'household' ? 'household-invite' : 'paper-card'} min-w-0 flex flex-col gap-4`}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
     >
-      <h2 className="m-0 text-[22px]">{title}</h2>
+      <h2 className="section-title font-display">{title}</h2>
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
         Username
         <div className="relative">
@@ -56,7 +56,7 @@ export function AddByUsername({ kind, title, help }: { kind: 'friend' | 'househo
           </select>
         </label>
       )}
-      <button type="submit" className={btn} disabled={busy || !clean || Boolean(usernameError(clean))}>
+      <button type="submit" className={`${kind === 'household' ? 'hack-create rounded-md font-semibold' : btn} w-full disabled:cursor-not-allowed disabled:opacity-50`} disabled={busy || !clean || Boolean(usernameError(clean))}>
         {busy ? 'Sending…' : 'Send request'}
       </button>
       {notice && (

@@ -10,7 +10,8 @@ import { money0, shortDate } from '@/lib/format';
 import { DEMO_ASOF } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
-import { Card, Eyebrow, Pill, btn, input } from '@/components/ui';
+import { Card, Pill, btn, input } from '@/components/ui';
+import { PageShell } from '@/components/wallet/PageShell';
 
 interface Question {
   label: string;
@@ -75,12 +76,7 @@ export default function BuyPage() {
   };
 
   return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        <Eyebrow>What if</Eyebrow>
-        <h1 className="m-0 text-[32px]">Can I buy it?</h1>
-        <p className="m-0 text-ink-2">We re-score your money as if you already bought it.</p>
-      </div>
+    <PageShell id="buy" title="Can I Buy?" intro="Check a purchase against your exact funding account, protected goals, and upcoming bills.">
 
       {loaded.status !== 'ready' || !picture ? (
         <Card>
@@ -89,9 +85,9 @@ export default function BuyPage() {
           </p>
         </Card>
       ) : (
-        <div className="flex flex-wrap items-start gap-5">
+        <div className="grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
           <form
-            className="box-border flex flex-[1_1_360px] flex-col gap-[18px] rounded-[14px] border border-line bg-surface p-6"
+            className="paper-card flex min-w-0 flex-col gap-[18px]"
             aria-label="Purchase question"
             onSubmit={(e) => {
               e.preventDefault();
@@ -106,7 +102,7 @@ export default function BuyPage() {
                     key={ex.chip}
                     type="button"
                     onClick={() => ask(ex)}
-                    className="inline-flex min-h-10 cursor-pointer items-center rounded-full border border-line-2 bg-white px-3.5 text-sm font-medium text-ink hover:bg-hover"
+                    className="chip"
                   >
                     {ex.chip}
                   </button>
@@ -115,7 +111,7 @@ export default function BuyPage() {
             </div>
             <label className="flex flex-col gap-1.5 text-sm font-semibold">
               What is it?
-              <input className={input} value={q.label} onChange={(e) => setQ({ ...q, label: e.target.value })} placeholder="PlayStation 6" />
+              <input className={input} required value={q.label} onChange={(e) => setQ({ ...q, label: e.target.value })} placeholder="PlayStation 6" />
             </label>
             <div className="flex flex-wrap gap-3">
               <label className="flex flex-[1_1_140px] flex-col gap-1.5 text-sm font-semibold">
@@ -133,12 +129,12 @@ export default function BuyPage() {
                 {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
-            <button type="submit" className={btn} disabled={!selected || (parseMoney(q.cost) ?? 0) <= 0}>
+            <button type="submit" className={btn} disabled={!q.label.trim() || !q.date || !selected || (parseMoney(q.cost) ?? 0) <= 0}>
               Check it
             </button>
           </form>
 
-          <Card label="Answer" className="flex min-w-0 flex-[999_1_520px] flex-col gap-[18px]">
+          <Card label="Answer" className="flex min-h-[360px] min-w-0 flex-col gap-[18px]">
             {!result ? (
               <p className="m-0 text-ink-2" aria-live="polite">
                 Ask about something you’re thinking of buying, or try an example.
@@ -177,7 +173,7 @@ export default function BuyPage() {
           </Card>
         </div>
       )}
-    </>
+    </PageShell>
   );
 }
 

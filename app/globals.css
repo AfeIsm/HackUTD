@@ -1,48 +1,66 @@
 @import "tailwindcss";
+@import "./wallet.css";
 
-/* Wallet Whisperer design tokens (match the UI mockup) */
-@theme {
-  --color-bg: #f6f6f3;
-  --color-surface: #ffffff;
-  --color-ink: #16181d;
-  --color-ink-2: #3d424c;
-  --color-muted: #5b606b;
-  --color-line: #e3e3de;
-  --color-line-2: #cfcfc8;
-  --color-soft: #ecece7;
-  --color-hover: #f0f0ec;
-  --color-accent: #1f4fd8;
-  --color-accent-dark: #163ba6;
-  --color-accent-bg: #f3f6fe;
-
-  --color-good: #12703a;
-  --color-good-bg: #e3f4e8;
-  --color-good-ring: #1e8e4e;
-  --color-warn: #8a5300;
-  --color-warn-bg: #fdf1d8;
-  --color-warn-ring: #d48a0c;
-  --color-bad: #b4231b;
-  --color-bad-bg: #fbe4e2;
-  --color-bad-ring: #d2382e;
-
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
+/* Existing financial components share the approved wallet palette. */
+@theme inline {
+  --color-bg: var(--muted);
+  --color-surface: var(--paper);
+  --color-ink: var(--foreground);
+  --color-ink-2: var(--foreground);
+  --color-muted: var(--muted-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-line: var(--border);
+  --color-line-2: var(--input);
+  --color-border: var(--border);
+  --color-soft: var(--muted);
+  --color-hover: var(--muted);
+  --color-accent: var(--primary);
+  --color-accent-dark: var(--leather-dark);
+  --color-accent-bg: var(--hack-cream);
+  --color-good-ring: var(--good);
+  --color-warn: var(--watch);
+  --color-warn-bg: var(--watch-bg);
+  --color-warn-ring: var(--watch);
+  --color-bad: var(--risk);
+  --color-bad-bg: var(--risk-bg);
+  --color-bad-ring: var(--risk);
 }
-
-body {
-  background: var(--color-bg);
-  color: var(--color-ink);
+body { color: var(--foreground); }
+h1, h2, h3 { font-family: var(--font-display); }
+button, summary { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+.page-body { display: flex; flex-direction: column; gap: 24px; }
+.page-body h2 { font-size: 1.5rem; font-weight: 600; }
+.page-body h3 { font-weight: 600; }
+.page-body input, .page-body select { min-width: 0; }
+.page-sheet { overflow-wrap: anywhere; }
+.page-header-inner .btn-ghost { color: var(--foreground); }
+.page-buy .page-header-inner { min-height: 260px; }
+.page-buy .page-title, .page-buy .page-intro { width: fit-content; background: var(--note-light); border-radius: 8px; padding: 4px 12px; }
+.skip-link { position: fixed; left: 20px; top: -100px; z-index: 100; padding: 10px 16px; background: var(--paper); border-radius: 8px; }
+.skip-link:focus { top: 16px; }
+.wallet-session-note { position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 20; text-align: center; }
+dialog.login-panel { margin: 0; border: 0; color: var(--foreground); }
+dialog.login-panel::backdrop { background: oklch(0.2 0.02 40 / 0.25); backdrop-filter: blur(1px); }
+.wallet-stage[aria-hidden="true"] { pointer-events: none; }
+.nav-object.is-card { height: 50px; }
+.nav-object.is-card .card-face { height: 230px; pointer-events: none; }
+.field-input.pl-7 { padding-left: 1.75rem; }
+.id-value { overflow-wrap: anywhere; }
+.id-fields { min-width: 0; }
+.id-value.font-display { font-size: clamp(.95rem, 2vw, 1.3rem); }
+@media (max-width: 600px) {
+  .chrome { padding: 12px 16px; }
+  .chrome-brand { width: 48px; height: 48px; }
+  .page-header-inner { padding: 24px 20px 28px; }
+  .paper-card { padding: 18px; }
+  .page-title { max-width: 100%; }
 }
-
-h1,
-h2,
-h3 {
-  font-family: var(--font-display);
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+  .flight-card, .wallet-stage { transition-duration: 0ms !important; }
+  .page-wrap, .login-panel { animation: none; }
 }
-
-/* carousel: a card that wraps around fades in instead of flying across */
-@keyframes ww-fade-in {
-  from {
-    opacity: 0;
-  }
-}
+@keyframes ww-fade-in { from { opacity: 0; } }

@@ -21,6 +21,7 @@ import { PledgeCoach } from './PledgeCoach';
 import { PurchasePanel } from './PurchasePanel';
 import { TransferNow } from './TransferNow';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
+import { PageShell } from './wallet/PageShell';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
 const STAGE = { pledging: 0, revealed: 1, agreeing: 2, locked: 3, cancelled: 3 } as const;
@@ -41,25 +42,24 @@ export function HuddleDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (state.status === 'loading') return <Card><p className="m-0 text-ink-2">Loading huddle…</p></Card>;
+  if (state.status === 'loading') return <PageShell id="huddles" eyebrow="Group purchases" title="Huddle"><Card><p className="text-ink-2">Loading huddle…</p></Card></PageShell>;
   const h = state.status === 'ready' ? state.huddles.find((x) => x.id === id) : undefined;
   if (!h) {
     return (
-      <Card>
-        <p className="m-0 text-ink-2">This huddle doesn’t exist, or you’re not part of it.</p>
+      <PageShell id="huddles" eyebrow="Group purchases" title="Huddle"><Card>
+        <p className="m-0 text-ink-2">{state.status === 'error' ? 'Couldn’t load this huddle. Refresh to try again.' : 'This huddle doesn’t exist, or you’re not part of it.'}</p>
         <Link href="/huddles" className="mt-2 inline-block font-semibold">← All huddles</Link>
-      </Card>
+      </Card></PageShell>
     );
   }
 
   // Browsers keep one login per site: a second account logging in elsewhere replaces this tab's.
   if (h.me && h.me.memberId !== viewerId) {
     return (
-      <Card className="flex flex-col gap-3">
-        <h1 className="m-0 text-[24px]">This browser switched accounts</h1>
+      <PageShell id="huddles" title="This browser switched accounts"><Card className="flex flex-col gap-3">
         <p className="m-0 text-ink-2">Another account logged in on this browser, so this tab can’t show your view anymore. To test two people at once, use a private window or a second browser for the other account.</p>
         <button type="button" className={`${btn} self-start`} onClick={() => window.location.reload()}>Reload as the current account</button>
-      </Card>
+      </Card></PageShell>
     );
   }
 
@@ -79,19 +79,14 @@ export function HuddleDetail({ id }: { id: string }) {
   const payersShown = h.participants.filter((p) => p.isPaying);
 
   return (
-    <>
-      <div className="flex flex-col gap-2.5">
-        <Link href="/huddles" className="py-1.5 text-sm font-semibold no-underline">← All huddles</Link>
-        <h1 className="m-0 text-[34px]">{h.name}</h1>
-        <div className="flex flex-wrap gap-2">
+    <PageShell id="huddles" eyebrow="Group purchases" title={h.name}
+      intro={`${money0(h.totalCost)} · pay by ${shortDate(h.targetDate)} · ${h.participants.length} people, ${h.payingCount} paying · round ${h.round} of 3`}
+      actions={<>
           <button type="button" className={btn2} disabled={busy} onClick={() => void run({ action: 'leave' })}>Leave huddle</button>
           {h.createdBy === viewerId && <button type="button" className={`${btn2} text-bad`} disabled={busy} onClick={() => void run({ action: 'delete' })}>Delete huddle for everyone</button>}
-        </div>
-        <p className="m-0 text-ink-2">
-          {money0(h.totalCost)} · pay by {shortDate(h.targetDate)} · {h.participants.length} people, {h.payingCount} paying ·
-          round {h.round} of 3
-        </p>
-      </div>
+      </>}>
+      <div className="grid gap-6">
+      <Link href="/huddles" className="py-1.5 text-sm font-semibold no-underline">← All huddles</Link>
 
       <ol aria-label="Huddle progress" className="m-0 flex list-none flex-wrap gap-2 p-0">
         {STEPS.map((label, i) => {
@@ -126,7 +121,7 @@ export function HuddleDetail({ id }: { id: string }) {
       <PurchasePanel h={h} isCreator={h.createdBy === viewerId} run={run} busy={busy} />
 
       <div className="flex flex-wrap items-start gap-5">
-        <section aria-label="Your private panel" className="box-border flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] rounded-[14px] border-2 border-ink bg-surface p-6">
+        <section aria-label="Your private panel" className="paper-card flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] border-2 border-ink">
           <div className="flex items-center gap-2">
             <LockIcon />
             <Eyebrow className="text-ink">Only you see this</Eyebrow>
@@ -134,7 +129,7 @@ export function HuddleDetail({ id }: { id: string }) {
           <PrivatePanel h={h} mine={h.me} picture={picture} isCreator={h.createdBy === viewerId} short={short} run={run} busy={busy} />
         </section>
 
-        <section aria-label="What the group sees" className="box-border flex min-w-0 flex-[1_1_460px] flex-col gap-4 rounded-[14px] border border-line bg-surface p-6">
+        <section aria-label="What the group sees" className="paper-card flex min-w-0 flex-[1_1_460px] flex-col gap-4">
           <Eyebrow>What the group sees</Eyebrow>
           {h.phase === 'pledging' ? (
             <Funding
@@ -218,7 +213,8 @@ export function HuddleDetail({ id }: { id: string }) {
           )}
         </section>
       </div>
-    </>
+      </div>
+    </PageShell>
   );
 }
 

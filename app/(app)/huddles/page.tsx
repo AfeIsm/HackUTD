@@ -9,8 +9,9 @@ import { PEOPLE, lookOf } from '@/lib/people';
 import { useConnections } from '@/lib/useConnections';
 import { huddleAction, huddleRequest, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
-import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
+import { Avatar, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
 import { BudgetNote, useBudgetCheck } from '@/components/BudgetCheck';
+import { PageShell } from '@/components/wallet/PageShell';
 
 const PHASE_LABEL = {
   pledging: { label: 'Pledging', className: 'bg-warn-bg text-warn' },
@@ -57,19 +58,14 @@ export default function HuddlesPage() {
   const valid = going.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Eyebrow>Group purchases</Eyebrow>
-          <h1 className="m-0 text-[32px]">Huddles</h1>
-        </div>
-        <a className={btn} href="#new">New huddle</a>
-      </div>
+    <PageShell id="huddles" eyebrow="Group purchases" title="Huddles">
+      <div className="grid gap-6">
+      {error && <p role="alert" className="rounded-lg bg-bad-bg px-4 py-3 text-sm text-bad">{error}</p>}
 
       {invites.map((h) => {
         const from = h.participants.find((p) => p.memberId === h.createdBy)?.name ?? 'Someone';
         return (
-          <section key={h.id} aria-label="Invite" className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-[#BFD0F5] bg-accent-bg p-6">
+          <section key={h.id} aria-label="Invite" className="paper-card flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-col gap-1">
               <Eyebrow className="text-[#1A3E9E]">Invite</Eyebrow>
               <strong className="text-[17px]">{from} invited you to “{h.name}”</strong>
@@ -78,7 +74,12 @@ export default function HuddlesPage() {
               </span>
             </div>
             <div className="flex gap-2">
-              <button type="button" className={btn2} onClick={() => void huddleAction(h.id, { action: 'answerInvite', accept: false })}>Decline</button>
+              <button type="button" className={btn2} disabled={busy} onClick={async () => {
+                setBusy(true);
+                const result = await huddleAction(h.id, { action: 'answerInvite', accept: false });
+                setError(result.error);
+                setBusy(false);
+              }}>Decline</button>
               <Link href={`/huddles/${h.id}`} className={btn}>View invite</Link>
             </div>
           </section>
@@ -88,8 +89,8 @@ export default function HuddlesPage() {
       {huddlesState.status === 'loading' && <p className="m-0 text-muted">Loading huddles…</p>}
       {huddlesState.status === 'error' && <p className="m-0 text-bad">Couldn’t load your huddles. Refresh to try again.</p>}
 
-      <section aria-label="My huddles" className="flex flex-wrap gap-5">
-        {huddlesState.status === 'ready' && mine.length === 0 && <Card className="flex-1"><p className="m-0 text-ink-2">No huddles yet. Start one below.</p></Card>}
+      <section aria-label="My huddles" className="paper-card grid divide-y divide-border">
+        {huddlesState.status === 'ready' && mine.length === 0 && <p>No huddles yet. Start one below.</p>}
         {mine.map((h) => {
           const committed = h.committedCount;
           const revealed = h.totalCommitted !== null;
@@ -98,10 +99,10 @@ export default function HuddlesPage() {
             <Link
               key={h.id}
               href={`/huddles/${h.id}`}
-              className="box-border flex flex-[1_1_320px] flex-col gap-3.5 rounded-[14px] border border-line bg-surface p-6 text-ink no-underline hover:border-accent"
+              className="flex min-w-0 flex-col gap-3 py-4 text-ink no-underline first:pt-0 last:pb-0 hover:opacity-80"
             >
               <div className="flex items-start justify-between gap-3">
-                <h2 className="m-0 text-[22px]">{h.name}</h2>
+                <h2 className="font-display text-xl font-semibold">{h.name}</h2>
                 <div className="flex flex-wrap justify-end gap-1.5">
                   {h.atRiskCount > 0 && <Pill className="bg-bad-bg text-bad">⚠ Not affordable</Pill>}
                   <Pill className={PHASE_LABEL[h.phase].className}>{PHASE_LABEL[h.phase].label}</Pill>
@@ -128,7 +129,7 @@ export default function HuddlesPage() {
 
       <form
         id="new"
-        className="box-border flex flex-col gap-5 rounded-[14px] border border-line bg-surface p-6"
+        className="paper-card flex min-w-0 flex-col gap-5"
         aria-label="New huddle"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -143,24 +144,24 @@ export default function HuddlesPage() {
           if (res.id) router.push(`/huddles/${res.id}`);
         }}
       >
-        <h2 className="m-0 text-[22px]">Start a huddle</h2>
-        <div className="flex flex-wrap gap-4">
-          <label className="flex flex-[2_1_260px] flex-col gap-1.5 text-sm font-semibold">
+        <h2 className="section-title font-display">Start a huddle</h2>
+        <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr_1fr]">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold">
             What are you planning?
             <input className={input} value={name} onChange={(e) => setName(e.target.value)} onBlur={budget.check} placeholder="Beach weekend" />
           </label>
-          <label className="flex flex-[1_1_160px] flex-col gap-1.5 text-sm font-semibold">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold">
             Total cost
             <input className={input} inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} onBlur={budget.check} placeholder="1200" />
           </label>
-          <label className="flex flex-[1_1_180px] flex-col gap-1.5 text-sm font-semibold">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold">
             Pay by
             <input className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
         </div>
         <BudgetNote state={budget.state} />
         <div className="flex flex-col">
-          <h3 className="m-0 text-[17px]">Who’s coming</h3>
+          <h3 className="font-display text-xl">Who’s coming</h3>
           <p className="m-0 mb-1 text-[13px] text-muted">Uncheck anyone who isn’t coming. They won’t be added or invited.</p>
           {candidates.map((id) => {
             const p = personFor(id);
@@ -168,7 +169,7 @@ export default function HuddlesPage() {
             const on = isPaying(id);
             const here = isComing(id);
             return (
-              <div key={id} className="flex items-center gap-3.5 border-t border-[#EFEFEA] py-3">
+              <div key={id} className="flex flex-wrap items-center gap-3 border-t border-border py-3">
                 <input
                   type="checkbox"
                   className="h-[18px] w-[18px] flex-none"
@@ -185,29 +186,32 @@ export default function HuddlesPage() {
                 {here ? (
                   <>
                     <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
-                    <button
-                      type="button"
+                    <input
+                      type="checkbox"
                       role="switch"
-                      aria-checked={on}
+                      checked={on}
                       aria-label={`${p.name} is paying`}
-                      onClick={() => setPaying({ ...paying, [id]: !on })}
-                      className={`relative h-[30px] w-[52px] flex-none cursor-pointer rounded-full border-0 p-0 ${on ? 'bg-accent' : 'bg-[#B9BDC6]'}`}
-                    >
-                      <span className="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left]" style={{ left: on ? 25 : 3 }} />
-                    </button>
+                      onChange={(e) => setPaying({ ...paying, [id]: e.target.checked })}
+                      className="switch shrink-0"
+                    />
                   </>
                 ) : <span className="text-sm text-muted">Not coming</span>}
               </div>
             );
           })}
           <Link href="/friends" className="inline-block py-3 text-[15px] font-semibold">+ Add a friend by username</Link>
+          {conn.status === 'loading' && <p className="text-sm text-muted">Loading people you can invite…</p>}
+          {conn.status === 'error' && <p role="alert" className="text-sm text-bad">Couldn’t load your friends and household. Refresh to try again.</p>}
+          {conn.status === 'ready' && candidates.length < 2 && <p className="text-sm text-muted">Add a friend or household member first. At least two people are needed for a huddle.</p>}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-muted">Each payer pledges privately. Nobody sees amounts until everyone has committed.</span>
-          <button type="submit" className={btn} disabled={!valid || busy}>{busy ? 'Creating…' : 'Create huddle'}</button>
+          <button type="submit" className="nvidia-create inline-flex items-center justify-center gap-2 rounded-md font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={!valid || busy}>
+            <span aria-hidden="true">＋</span>{busy ? 'Creating…' : 'Create huddle'}
+          </button>
         </div>
-        {error && <p role="alert" className="m-0 rounded-lg bg-bad-bg px-3 py-2 text-sm text-bad">{error}</p>}
       </form>
-    </>
+      </div>
+    </PageShell>
   );
 }

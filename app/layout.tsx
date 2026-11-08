@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
+import { Suspense } from "react";
+import { WalletApp } from "@/components/wallet/WalletApp";
 import "./globals.css";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"] });
+const manrope = localFont({ src: './fonts/manrope.woff2', variable: '--font-manrope', weight: '400 700', display: 'swap' });
+const fraunces = localFont({ src: './fonts/fraunces.woff2', variable: '--font-fraunces', weight: '400 700', display: 'swap' });
 
 export const metadata: Metadata = {
   title: "Wallet Whisperer",
@@ -12,8 +14,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans">{children}</body>
+    <html lang="en" className={`${manrope.variable} ${fraunces.variable} h-full antialiased`}>
+      <body className="min-h-full font-sans">
+        <Suspense fallback={<p className="p-8" role="status">Opening your wallet…</p>}>
+          <WalletApp>{children}</WalletApp>
+        </Suspense>
+      </body>
     </html>
   );
 }
