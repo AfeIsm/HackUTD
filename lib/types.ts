@@ -121,6 +121,14 @@ export interface HealthResult {
 }
 
 // ---------- What-ifs (Can I buy, fix plans) ----------
+// A hypothetical change the engine simulates. Meaning of each kind:
+//   oneTime  : `amount` leaves `source` (default checking) on `date` (default today).
+//   weekly   : same, every 7 days starting `date` (default 7 days from today).
+//   monthly  : same, every month starting `date` (default 1 month from today).
+//              Negative amount = money that stops leaving (e.g. "cut dining $35/wk" = -35).
+//   With goalId: the money moves INTO savings for that goal instead of being spent
+//              (e.g. "set aside $45/week for the PS6 fund").
+//   cancelObligation : stop paying `obligationKey` from `date` (default today); amount ignored.
 export interface Change {
   kind: 'oneTime' | 'weekly' | 'monthly' | 'cancelObligation';
   amount: number;
@@ -128,6 +136,7 @@ export interface Change {
   date?: string;
   label: string;
   goalId?: string;
+  obligationKey?: string;
 }
 
 export interface AffordResult {
