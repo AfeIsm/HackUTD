@@ -15,6 +15,8 @@ export function Chrome() {
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' });
       if (!res.ok) throw new Error('Couldn’t log out. Try again.');
+      // Never let an interrupted animation leave someone on a logged-out page.
+      await Promise.race([w.closeForLogout(), new Promise((done) => setTimeout(done, 3000))]);
       // A full reload discards all previous-user caches before opening another session.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign('/');

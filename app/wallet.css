@@ -111,7 +111,9 @@ body {
 .flap-outside { transform: rotateY(180deg) translateZ(1px); border-radius: 6px 22px 22px 6px; }
 .wallet-fold { position: absolute; left: calc(50% - 6px); top: 4px; bottom: 4px; width: 12px; background: linear-gradient(90deg, transparent, var(--leather-edge) 45%, var(--leather-edge) 55%, transparent); opacity: 0.75; pointer-events: none; z-index: 30; transition: opacity 400ms; }
 .wallet[data-open="false"] .wallet-fold { opacity: 0; }
-.wallet[data-open="false"] .wallet-right .pockets { visibility: hidden; }
+/* Stay visible until the closing flap has covered them. Opening shows them at once. */
+.wallet[data-open="false"] .wallet-right .pockets { visibility: hidden; transition: visibility 0s linear 900ms; }
+.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets { transition-delay: 200ms; }
 
 .leather {
   background-color: var(--leather);
