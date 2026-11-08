@@ -85,7 +85,17 @@ export default function BuyPage() {
   };
 
   return (
-    <PageShell id="buy" eyebrow="Before you buy" title="Can I buy it?" intro="A little clarity before checkout. See how your purchases fit your money together.">
+    <PageShell
+      id="buy"
+      title="Can I buy it?"
+      intro={
+        <>
+          A little clarity before checkout.
+          <br />
+          See how your purchases fit your money together.
+        </>
+      }
+    >
 
       {loaded.status !== 'ready' || !picture ? (
         <Card>
@@ -104,7 +114,6 @@ export default function BuyPage() {
             }}
           >
             <div className="buy-form-heading">
-              <span className="buy-step" aria-hidden="true">01</span>
               <div>
                 <h2 className="m-0">Your purchase plan</h2>
                 <p className="buy-caption">Add an item and a date for each purchase.</p>
