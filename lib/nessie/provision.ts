@@ -122,10 +122,10 @@ export async function provisionUser(userId: ObjectId, dependent?: { memberId: st
     await members.updateOne({ memberId }, { $set: { customerId } });
     if (!dependent) await db.collection<UserDoc>('users').updateOne({ _id: userId }, { $set: { nessieCustomerId: customerId } });
     const checking = await create('checking', `/customers/${customerId}/accounts`, {
-      type: 'Checking', nickname: 'Demo checking', rewards: 0, balance: profile.checkingCents / 100,
+      type: 'Checking', nickname: 'Checking', rewards: 0, balance: profile.checkingCents / 100,
     });
     const savings = await create('savings', `/customers/${customerId}/accounts`, {
-      type: 'Savings', nickname: 'Demo savings', rewards: 0, balance: profile.savingsCents / 100,
+      type: 'Savings', nickname: 'Savings', rewards: 0, balance: profile.savingsCents / 100,
     });
     for (const [i, deposit] of profile.deposits.entries()) {
       await create(`payroll${i}`, `/accounts/${checking}/deposits`, {

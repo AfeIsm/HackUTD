@@ -10,6 +10,7 @@ import { useConnections } from '@/lib/useConnections';
 import { huddleAction, huddleRequest, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
+import { BudgetNote, useBudgetCheck } from '@/components/BudgetCheck';
 
 const PHASE_LABEL = {
   pledging: { label: 'Pledging', className: 'bg-warn-bg text-warn' },
@@ -47,9 +48,13 @@ export default function HuddlesPage() {
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
+  const [coming, setComing] = useState<Record<string, boolean>>({});
+  const isComing = (id: string) => id === me.id || (coming[id] ?? true); // you're always in your own huddle
+  const going = candidates.filter(isComing);
+  const budget = useBudgetCheck(name, total, date, going.length);
   const [paying, setPaying] = useState<Record<string, boolean>>({});
   const isPaying = (id: string) => paying[id] ?? id !== 'leo';
-  const valid = candidates.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
+  const valid = going.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
     <>
@@ -97,7 +102,10 @@ export default function HuddlesPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <h2 className="m-0 text-[22px]">{h.name}</h2>
-                <Pill className={PHASE_LABEL[h.phase].className}>{PHASE_LABEL[h.phase].label}</Pill>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {h.atRiskCount > 0 && <Pill className="bg-bad-bg text-bad">⚠ Not affordable</Pill>}
+                  <Pill className={PHASE_LABEL[h.phase].className}>{PHASE_LABEL[h.phase].label}</Pill>
+                </div>
               </div>
               <span className="text-[15px] text-ink-2">{money0(h.totalCost)} · by {shortDate(h.targetDate)}</span>
               <div className="h-2 overflow-hidden rounded-full bg-soft">
@@ -106,7 +114,7 @@ export default function HuddlesPage() {
               <div className="flex justify-between gap-3 text-sm">
                 <span>
                   {h.phase === 'locked'
-                    ? 'Plan locked · funding pending'
+                    ? 'Plan locked · amounts promised'
                     : revealed
                       ? `${money0(h.totalCommitted ?? 0)} of ${money0(h.totalCost)} committed`
                       : `${committed} of ${h.payingCount} committed`}
@@ -128,7 +136,7 @@ export default function HuddlesPage() {
           setBusy(true);
           const res = await huddleRequest('/api/huddles', {
             name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date,
-            members: candidates.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
+            members: going.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
           });
           setBusy(false);
           setError(res.error);
@@ -139,41 +147,56 @@ export default function HuddlesPage() {
         <div className="flex flex-wrap gap-4">
           <label className="flex flex-[2_1_260px] flex-col gap-1.5 text-sm font-semibold">
             What are you planning?
-            <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Beach weekend" />
+            <input className={input} value={name} onChange={(e) => setName(e.target.value)} onBlur={budget.check} placeholder="Beach weekend" />
           </label>
           <label className="flex flex-[1_1_160px] flex-col gap-1.5 text-sm font-semibold">
             Total cost
-            <input className={input} inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="1200" />
+            <input className={input} inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} onBlur={budget.check} placeholder="1200" />
           </label>
           <label className="flex flex-[1_1_180px] flex-col gap-1.5 text-sm font-semibold">
             Pay by
             <input className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
         </div>
+        <BudgetNote state={budget.state} />
         <div className="flex flex-col">
-          <h3 className="m-0 mb-1 text-[17px]">Who’s coming</h3>
+          <h3 className="m-0 text-[17px]">Who’s coming</h3>
+          <p className="m-0 mb-1 text-[13px] text-muted">Uncheck anyone who isn’t coming. They won’t be added or invited.</p>
           {candidates.map((id) => {
             const p = personFor(id);
             const isFriend = connections?.friends.some((f) => f.memberId === id) ?? false;
             const on = isPaying(id);
+            const here = isComing(id);
             return (
               <div key={id} className="flex items-center gap-3.5 border-t border-[#EFEFEA] py-3">
+                <input
+                  type="checkbox"
+                  className="h-[18px] w-[18px] flex-none"
+                  checked={here}
+                  disabled={id === me.id}
+                  aria-label={`${p.name} is coming`}
+                  onChange={(e) => setComing({ ...coming, [id]: e.target.checked })}
+                />
                 <Avatar initial={p.initial} color={p.color} />
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className={`flex min-w-0 flex-1 flex-col ${here ? '' : 'opacity-50'}`}>
                   <span className="font-semibold">{p.id === me.id ? `${p.name} (you)` : p.name}</span>
-                  <span className="text-[13px] text-muted">{isFriend ? 'Friend · gets an invite' : p.roleLabel}</span>
+                  <span className="text-[13px] text-muted">{!here ? 'Not invited' : isFriend ? 'Friend · gets an invite' : p.roleLabel}</span>
                 </div>
-                <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={`${p.name} is paying`}
-                  onClick={() => setPaying({ ...paying, [id]: !on })}
-                  className={`relative h-[30px] w-[52px] flex-none cursor-pointer rounded-full border-0 p-0 ${on ? 'bg-accent' : 'bg-[#B9BDC6]'}`}
-                >
-                  <span className="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left]" style={{ left: on ? 25 : 3 }} />
-                </button>
+                {here ? (
+                  <>
+                    <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      aria-label={`${p.name} is paying`}
+                      onClick={() => setPaying({ ...paying, [id]: !on })}
+                      className={`relative h-[30px] w-[52px] flex-none cursor-pointer rounded-full border-0 p-0 ${on ? 'bg-accent' : 'bg-[#B9BDC6]'}`}
+                    >
+                      <span className="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left]" style={{ left: on ? 25 : 3 }} />
+                    </button>
+                  </>
+                ) : <span className="text-sm text-muted">Not coming</span>}
               </div>
             );
           })}

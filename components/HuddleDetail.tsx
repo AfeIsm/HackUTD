@@ -14,9 +14,12 @@ import { fundingOptions } from '@/lib/fundingOptions';
 import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
 import { DEMO_ASOF, lookOf } from '@/lib/people';
-import { usePicture } from '@/lib/usePicture';
+import { invalidatePicture, usePicture } from '@/lib/usePicture';
 import { huddleAction, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
+import { PledgeCoach } from './PledgeCoach';
+import { PurchasePanel } from './PurchasePanel';
+import { TransferNow } from './TransferNow';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
@@ -49,10 +52,22 @@ export function HuddleDetail({ id }: { id: string }) {
     );
   }
 
+  // Browsers keep one login per site: a second account logging in elsewhere replaces this tab's.
+  if (h.me && h.me.memberId !== viewerId) {
+    return (
+      <Card className="flex flex-col gap-3">
+        <h1 className="m-0 text-[24px]">This browser switched accounts</h1>
+        <p className="m-0 text-ink-2">Another account logged in on this browser, so this tab can’t show your view anymore. To test two people at once, use a private window or a second browser for the other account.</p>
+        <button type="button" className={`${btn} self-start`} onClick={() => window.location.reload()}>Reload as the current account</button>
+      </Card>
+    );
+  }
+
   const run: Run = async (body) => {
     setBusy(true);
     const result = await huddleAction(h.id, body);
     setError(result.error);
+    if (!result.error && body.action === 'transferNow') invalidatePicture(viewerId); // show the new balance everywhere
     if (!result.error && (body.action === 'leave' || body.action === 'delete' ||
       (body.action === 'requestChanges' && body.reason === 'out') ||
       (body.action === 'answerInvite' && body.accept === false))) router.replace('/huddles');
@@ -96,6 +111,7 @@ export function HuddleDetail({ id }: { id: string }) {
         })}
       </ol>
 
+      <RiskBanner h={h} />
       {h.message && (
         <p role="status" className="m-0 rounded-xl border border-line bg-surface px-4 py-3 text-[15px]">
           {h.message}
@@ -106,6 +122,8 @@ export function HuddleDetail({ id }: { id: string }) {
           {error}
         </p>
       )}
+
+      <PurchasePanel h={h} isCreator={h.createdBy === viewerId} run={run} busy={busy} />
 
       <div className="flex flex-wrap items-start gap-5">
         <section aria-label="Your private panel" className="box-border flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] rounded-[14px] border-2 border-ink bg-surface p-6">
@@ -131,7 +149,9 @@ export function HuddleDetail({ id }: { id: string }) {
               done={short === 0}
               note={
                 h.phase === 'locked'
-                  ? 'Plan locked. Transfers are scheduled, not executed yet.'
+                  ? h.transferredTotal > 0
+                    ? `Plan locked. ${money0(h.transferredTotal)} has been transferred so far. The rest is saved as promises.`
+                    : 'Plan locked. Everyone’s amount is saved as a promise. No money has moved.'
                   : h.phase === 'cancelled'
                     ? 'This huddle was cancelled.'
                     : short > 0
@@ -185,12 +205,12 @@ export function HuddleDetail({ id }: { id: string }) {
 
           {h.phase === 'locked' && (
             <div className="flex flex-col gap-2 rounded-xl bg-bg p-4">
-              <Eyebrow>Transfers to the {h.name} fund</Eyebrow>
+              <Eyebrow>Promised to {h.name}</Eyebrow>
               {payersShown.map((p) => (
                 <div key={p.memberId} className="flex justify-between gap-3 py-1 text-sm">
-                  <span>{p.name} → trip fund</span>
+                  <span>{p.name}</span>
                   <span className="font-semibold">
-                    {money0(p.pledge ?? 0)} · <span className="text-muted">Scheduled</span>
+                    {money0(p.pledge ?? 0)} · <span className={p.transferred ? 'text-good' : 'text-muted'}>{p.transferred ? 'Transferred' : 'Promised'}</span>
                   </span>
                 </div>
               ))}
@@ -239,8 +259,11 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       <div className="flex flex-col gap-2.5">
         <h2 className="m-0 text-[22px]">Locked</h2>
         <p className="m-0 leading-relaxed text-ink-2">
-          Your {money0(mine.pledge ?? 0)} from {sourceText} is pledged to the {h.name} fund.
+          {mine.transfer?.status === 'sent'
+            ? `Your part of ${h.name} is done.`
+            : `You’ve promised ${money0(mine.pledge ?? 0)} from ${sourceText} to ${h.name}. No money has moved, so you can still spend it. We’ll warn you if that puts this promise at risk.`}
         </p>
+        {mine.pledge ? <TransferNow mine={mine} huddleName={h.name} sourceText={sourceText} busy={busy} onTransfer={() => run({ action: 'transferNow' })} /> : null}
       </div>
     );
   }
@@ -253,8 +276,11 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
             <strong className="text-[17px]">
               {money0(mine.pledge ?? 0)} from {sourceText} didn’t pass your health check.
             </strong>
-            <span className="text-sm leading-normal">{mine.feedback}</span>
+            {!mine.advice && <span className="text-sm leading-normal">{mine.feedback}</span>}
           </div>
+        )}
+        {mine.checkPassed === false && mine.advice && !changing && (
+          <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
         )}
         {mine.suggestion && !changing && (
           <div className="flex flex-col gap-2.5">
@@ -279,10 +305,18 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
   }
 
   const committedBox = (
-    <div className="flex flex-col gap-1.5 rounded-xl bg-good-bg p-4 text-[#0D5A2E]">
-      <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
-      <span className="text-sm">{mine.feedback}</span>
-    </div>
+    <>
+      <div role={mine.warning ? 'alert' : undefined} className={`flex flex-col gap-1.5 rounded-xl p-4 ${mine.warning ? 'bg-warn-bg text-warn' : 'bg-good-bg text-[#0D5A2E]'}`}>
+        <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
+        <span className="text-sm leading-normal">{mine.feedback}</span>
+        {mine.warning && h.phase === 'pledging' && (
+          <button type="button" className={`${btn2} mt-1 self-start`} onClick={() => setChanging(true)}>Change my amount</button>
+        )}
+      </div>
+      {mine.warning && mine.advice && (
+        <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
+      )}
+    </>
   );
 
   const editTotal = isCreator && (h.phase === 'revealed' || h.phase === 'agreeing') && <CreatorControls h={h} run={run} busy={busy} />;
@@ -330,7 +364,7 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={busy} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
+            <button type="button" className={btn} disabled={busy || !!h.purchase?.review} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
             <button type="button" className={btn2} onClick={() => setDeclineReason(declineReason ? null : 'changeMyAmount')}>Request changes</button>
           </div>
           {declineReason && (
@@ -433,6 +467,48 @@ function Funding({ title, pct, note, done = false }: { title: string; pct: numbe
         <div className={`h-2.5 transition-[width] duration-500 ${done ? 'bg-good-ring' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="m-0 text-sm text-muted">{note}</p>
+    </div>
+  );
+}
+
+// Shown to EVERYONE in the huddle when a commitment stops passing its health check (even after
+// lock). The person it belongs to sees their own numbers; everyone else only sees that one is at risk.
+function RiskBanner({ h }: { h: HuddleClientView }) {
+  if (h.atRiskCount === 0) return null;
+  const mine = h.me?.committed && h.me.atRisk ? h.me : null;
+  const others = h.atRiskCount - (mine ? 1 : 0);
+  const after = mine?.riskScore ?? null;
+  const color = after === null ? null : after >= 75 ? 'green' : after >= 50 ? 'yellow' : 'red';
+  return (
+    <div role="alert" className="flex flex-col gap-1.5 rounded-xl border border-bad-ring bg-bad-bg px-4 py-3 text-[15px] text-bad">
+      <strong className="text-[16px]">⚠ This huddle’s plan is no longer affordable</strong>
+      {mine && (
+        <p className="m-0">
+          Your {money0(mine.pledge ?? 0)} commitment no longer fits your finances.
+          {after !== null && <> Paying it now would drop your health score to <b>{after} ({color})</b>.</>}
+          {mine.riskReason && <> {mine.riskReason}</>} Undo the recent spending or talk to the group before {shortDate(h.targetDate)}.
+        </p>
+      )}
+      {mine && (mine.coach ? (
+        <div className="mt-1 flex flex-col gap-1.5 rounded-lg border border-line bg-surface px-3 py-2.5 text-ink">
+          <span className="text-[13px] font-semibold text-muted">🔒 Nemotron prepared this privately for you (no one else in the huddle sees it)</span>
+          <strong className="text-[15px]">{mine.coach.headline}</strong>
+          {mine.coach.actions.length > 0 && (
+            <ul className="m-0 flex flex-col gap-0.5 pl-5 text-[14px]">{mine.coach.actions.map((a) => <li key={a}>{a}</li>)}</ul>
+          )}
+          {mine.coach.firstStep && <span className="text-[14px]"><b>First step:</b> {mine.coach.firstStep}</span>}
+          {mine.coach.explanation && <span className="text-[14px] text-ink-2">{mine.coach.explanation}</span>}
+          <span className="text-xs text-muted">Score {mine.coach.scoreBefore} → {mine.coach.scoreAfter}, re-checked by our engine.</span>
+        </div>
+      ) : (
+        <span className="text-[13px]">Nemotron is preparing a private plan for you…</span>
+      ))}
+      {others > 0 && (
+        <p className="m-0">
+          {mine ? 'Also, ' : ''}{others === 1 ? 'one member’s commitment' : `${others} members’ commitments`} in this huddle {others === 1 ? 'is' : 'are'} no
+          longer affordable after a change in their finances. The group may come up short; check in with each other before {shortDate(h.targetDate)}.
+        </p>
+      )}
     </div>
   );
 }

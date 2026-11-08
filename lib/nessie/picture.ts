@@ -38,12 +38,18 @@ export function nextDueDate(day: number, asOf: string): string {
 
 const LOAN_TYPE: Record<string, string> = { auto: 'car', home: 'home', 'small business': 'business' };
 
+// Accounts already created in Nessie are named "Demo checking"; people should just see "Checking".
+const displayNickname = (name: string) => {
+  const clean = name.replace(/^demo\s+/i, '');
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+};
+
 export function toPicture(member: NessieMember, person: Person, merchants: MerchantMap, asOf: string): FinancialPicture {
   const accounts: Account[] = member.accounts.map((a) => ({
     id: a._id,
     ownerMemberId: a.customer_id && a.customer_id !== member.customerId ? '' : person.id,
     type: a.type,
-    nickname: a.nickname,
+    nickname: displayNickname(a.nickname),
     balance: toCents(a.balance),
     ...(a._id === person.cardAccountId ? { limit: person.cardLimit, minimumPayment: person.cardMinimumPayment } : {}),
   }));

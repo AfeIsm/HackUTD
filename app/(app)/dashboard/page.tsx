@@ -15,6 +15,9 @@ import { IndicatorList } from '@/components/IndicatorList';
 import { ObligationsList } from '@/components/ObligationsList';
 import { ScoreGauge } from '@/components/ScoreGauge';
 import { RandomizeFinances } from '@/components/RandomizeFinances';
+import { FixPlanCard } from '@/components/FixPlanCard';
+import { AgentPanel } from '@/components/AgentPanel';
+import { SavingsGoals } from '@/components/SavingsGoals';
 import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -53,6 +56,13 @@ export default function DashboardPage() {
     invalidatePicture(person.id);
     setNote({ id: person.id, text: 'Generated a new Nessie demo profile and recalculated your score.', ok: true });
   }} />;
+
+  // "Apply this plan" / "Undo" returns the fresh health check: show it.
+  const applied = (next: HealthPayload, text: string) => {
+    setLoaded({ id: person.id, payload: next });
+    invalidatePicture(person.id);
+    setNote({ id: person.id, text, ok: true });
+  };
 
   // Save something, then show the fresh (automatically re-run) health check
   const send = async (url: string, method: string, body: Record<string, unknown>, describe: (p: HealthPayload) => string | null) => {
@@ -163,6 +173,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {payload.plan && <FixPlanCard key={payload.plan.dataHash} plan={payload.plan} onApplied={applied} />}
+      <AgentPanel onApplied={applied} />
+
       <div className="flex flex-wrap items-start gap-5">
         <Card label="Add a purchase" className="min-w-0 flex-[999_1_520px]">
           <h2 className="m-0 mb-3 text-xl">Add a purchase</h2>
@@ -209,13 +222,14 @@ export default function DashboardPage() {
           value={picture.paycheck ? money0(picture.paycheck.avgAmount) : '—'}
           sub={picture.paycheck ? `Every ${picture.paycheck.cadenceDays} days · next ${dayDate(picture.paycheck.nextDate)}` : 'No regular paycheck found'}
         />
-        <SmallCard
-          label="Savings goals"
-          value={picture.goals.length ? picture.goals.map((g) => `${g.name} · ${money0(g.amount)}`).join(', ') : 'No goals yet'}
-          sub={picture.goals.length ? 'Set aside in savings' : 'Set money aside for something specific'}
-          small
-        />
       </section>
+
+      <SavingsGoals
+        picture={picture}
+        busy={busy}
+        onAdd={(g) => void send('/api/goals', 'POST', g, () => `Set aside ${money0(g.amount)} for ${g.name}.`)}
+        onRemove={(id) => void send('/api/goals', 'DELETE', { id }, () => 'Goal removed. The money is back in your free savings.')}
+      />
 
       <div className="flex flex-wrap items-start gap-5">
         <Card label="Forecast" className="flex min-w-0 flex-[1_1_420px] flex-col gap-3">

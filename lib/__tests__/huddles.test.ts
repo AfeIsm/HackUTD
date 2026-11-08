@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { checkPledge } from '../engine/split';
-import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor } from '../huddles';
+import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor, withOtherPledges } from '../huddles';
 import { ASOF, alex } from '../engine/__tests__/fixtures';
+import { applyAppChanges } from '../services/picture';
 
 const huddle = (participants = [newParticipant('alex', 'u1', 'Alex')], totalCost = 100): Huddle => ({
   id: 'h1', name: 'Test', totalCost, targetDate: '2027-03-20', createdBy: 'alex', phase: 'pledging', round: 1,
@@ -28,12 +29,82 @@ describe('Huddle phase machine + privacy filter', () => {
     const h = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('leo', null, 'Leo'), newParticipant('sam', 'u2', 'Sam')]);
     expect(applyLeave(h, 'alex')?.createdBy).toBe('sam');
   });
-  it('does not commit an unaffordable or yellow pledge, and never leaks the account', () => {
-    const pledge = { amount: 100, sourceAccountId: 'a1' };
+  it('does not commit money the account does not have, and never leaks the account', () => {
+    const pledge = { amount: 90000000, sourceAccountId: 'a1' };
     const h = applyPledge(huddle(), 'alex', pledge, checkPledge(alex, pledge, '2027-03-20', ASOF));
     expect(h.participants[0].committed).toBe(false);
     expect(h.participants[0].sourceAccountId).toBe('a1');
     expect(JSON.stringify(viewFor(h, 'someone-else'))).not.toContain('a1');
+  });
+
+  describe('promises in other huddles count against you', () => {
+    const other = (over: Partial<Huddle> = {}, pledge = 60000): Huddle => ({
+      ...huddle([newParticipant('alex', 'u1', 'Alex', { committed: true, pledge, sourceAccountId: 'a1' }), newParticipant('sam', 'u2', 'Sam', { committed: true, pledge: 99, sourceAccountId: 's1' })]),
+      id: 'other', ...over,
+    });
+    const after = (h: Huddle) => withOtherPledges(rich, [h], 'this', ASOF);
+
+    it('refuses a second pledge the first one already spoke for, and says why', () => {
+      const r = checkPledge(after(other()), { amount: 60000, sourceAccountId: 'a1' }, '2027-03-20', ASOF);
+      expect(rich.accounts.find((a) => a.id === 'a1')?.balance).toBe(80000);
+      expect(r.passed).toBe(false);
+      expect(r.reason).toBe('Only $200 of Checking is free. The rest is already promised to your other huddles.');
+    });
+    it('money already transferred is not counted a second time', () => {
+      const sent = other();
+      sent.participants[0] = { ...sent.participants[0], transfer: { status: 'sent' } };
+      expect(after(sent).reservations).toEqual([]);
+    });
+    it('the group can see who transferred, but not the bank details', () => {
+      const sent = other({ phase: 'locked' });
+      sent.participants[0] = { ...sent.participants[0], transfer: { status: 'sent', recordId: 'secret-record' } };
+      const v = viewFor(sent, 'sam');
+      expect(v.participants.find((p) => p.memberId === 'alex')?.transferred).toBe(true);
+      expect(v.transferredTotal).toBe(60000);
+      expect(JSON.stringify(v)).not.toContain('secret-record');
+    });
+    it('a sent transfer lowers the balance once, on the right account', () => {
+      const p = applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 25000, sourceAccountId: 'a1' }]);
+      expect(p.accounts.find((a) => a.id === 'a1')?.balance).toBe(55000);
+      expect(p.accounts.find((a) => a.id === 'a2')?.balance).toBe(rich.accounts.find((a) => a.id === 'a2')?.balance);
+      expect(p.txns.filter((t) => t.id === 'huddle-transfer-h1')).toHaveLength(1);
+      expect(p.txns.find((t) => t.id === 'huddle-transfer-h1')?.kind).toBe('transfer');
+    });
+    it('a transfer from a goal uses up that goal', () => {
+      const p = applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 10000, sourceAccountId: 'a2', goalId: 'orlando' }]);
+      expect(p.goals.find((g) => g.id === 'orlando')?.amount).toBe(20000);
+    });
+    it('a transfer from an account that no longer exists is ignored', () => {
+      expect(applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 100, sourceAccountId: 'old' }]).accounts).toEqual(rich.accounts);
+    });
+    it('still allows what is left', () => {
+      expect(checkPledge(after(other()), { amount: 10000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(true);
+    });
+    it('counts only your own pledge, never someone else’s', () => {
+      expect(after(other()).reservations.map((r) => r.amount)).toEqual([60000]);
+    });
+    it('ignores this huddle, cancelled huddles and promises whose date has passed', () => {
+      expect(withOtherPledges(rich, [other()], 'other', ASOF).reservations).toEqual([]);
+      expect(after(other({ phase: 'cancelled' })).reservations).toEqual([]);
+      expect(after(other({ targetDate: '2026-11-01' })).reservations).toEqual([]);
+    });
+    it('a stale account or deleted goal can’t break the check', () => {
+      const gone = other();
+      gone.participants[0] = { ...gone.participants[0], sourceAccountId: 'old-account' };
+      expect(after(gone).reservations).toEqual([]);
+      const noGoal = other();
+      noGoal.participants[0] = { ...noGoal.participants[0], goalId: 'deleted' };
+      expect(after(noGoal).reservations[0].goalId).toBeUndefined();
+    });
+  });
+
+  it('commits a yellow pledge with a warning only that person can see', () => {
+    const two = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('sam', 'u2', 'Sam')], 1000);
+    const pledge = { amount: 100, sourceAccountId: 'a1' };
+    const h = applyPledge(two, 'alex', pledge, checkPledge(alex, pledge, '2027-03-20', ASOF));
+    expect(h.participants[0].committed).toBe(true);
+    expect(viewFor(h, 'alex').me?.warning).toMatch(/Rent/);
+    expect(JSON.stringify(viewFor(h, 'sam'))).not.toMatch(/Rent|advise/);
   });
 
   it('a green contribution can progress to agreement and lock', () => {
@@ -45,7 +116,7 @@ describe('Huddle phase machine + privacy filter', () => {
 
   it('hides amounts from others while pledging, shows them after reveal', () => {
     const two = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('sam', 'u2', 'Sam')], 1000);
-    const pass = { passed: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
+    const pass = { passed: true, safe: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
     const one = applyPledge(two, 'alex', { amount: 300, sourceAccountId: 'a1' }, pass);
     const samView = viewFor(one, 'sam');
     expect(one.phase).toBe('pledging');
@@ -69,11 +140,36 @@ describe('Huddle phase machine + privacy filter', () => {
   });
 
   it('a decline gives a neutral group message with no financial details', () => {
-    const pass = { passed: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
+    const pass = { passed: true, safe: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
     const h = applyPledge(huddle(), 'alex', { amount: 100, sourceAccountId: 'a1' }, pass);
     const d = applyDecline(h, 'alex', 'unfairSplit', { alex: 100 });
     expect(d.message).toBe('Alex requested changes: the split feels unfair.');
     expect(viewFor(d, 'alex').fairSplit).toEqual([{ memberId: 'alex', name: 'Alex', amount: 100 }]);
     expect(d.round).toBe(2);
+  });
+
+  it('a locked commitment that stops passing its check warns everyone, but only its owner sees why', () => {
+    const ps = ['alex', 'sam'].map((id) => newParticipant(id, id, id, { committed: true, agreed: true, pledge: 100, sourceAccountId: 'acct-' + id }));
+    ps[1] = { ...ps[1], atRisk: true, riskReason: 'leaves a red assessment', riskScore: 42,
+      coach: { verdict: 'yesIf', headline: 'SECRET-COACH-PLAN', focus: null, firstStep: null, summary: '', explanation: '', actions: [], scoreBefore: 42, scoreAfter: 80, statusBefore: 'red', statusAfter: 'green', notGreen: [], problems: [], apply: null, createdAt: '2026-11-08T00:00:00Z' } };
+    const h: Huddle = { ...huddle(ps), phase: 'locked' };
+    const alexView = viewFor(h, 'alex');
+    expect(alexView.atRiskCount).toBe(1);
+    expect(JSON.stringify(alexView)).not.toContain('red assessment');
+    expect(JSON.stringify(alexView)).not.toContain('42');
+    expect(JSON.stringify(alexView)).not.toContain('SECRET-COACH-PLAN'); // Nemotron's private plan stays private
+    expect(alexView.participants.some((p) => 'atRisk' in p)).toBe(false); // never says WHO
+    const samView = viewFor(h, 'sam');
+    expect(samView.me?.atRisk).toBe(true);
+    expect(samView.me?.riskScore).toBe(42);
+    expect(samView.me?.coach?.headline).toBe('SECRET-COACH-PLAN');
+    expect(viewFor({ ...h, phase: 'cancelled' }, 'alex').atRiskCount).toBe(0);
+  });
+
+  it('a new pledge clears an old warning', () => {
+    const p = newParticipant('alex', 'u1', 'Alex', { atRisk: true, riskReason: 'x', riskScore: 10 });
+    const pledge = { amount: 100, sourceAccountId: 'a1' };
+    const h = applyPledge(huddle([p]), 'alex', pledge, checkPledge(rich, pledge, '2027-03-20', ASOF));
+    expect(h.participants[0]).toMatchObject({ atRisk: false, riskReason: null, riskScore: null });
   });
 });

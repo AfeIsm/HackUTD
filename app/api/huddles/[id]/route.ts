@@ -3,10 +3,17 @@
 //   agree · requestChanges {reason} · edit {totalCost?, targetDate?} · cancel
 // Returns my huddles, privacy-filtered for me.
 
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { requireViewer } from '@/lib/auth/viewer';
+import { coachFailedPledge } from '@/lib/agent/coach';
+import { runPurchaseAgent } from '@/lib/agent/purchase';
+import { runHealthCheck } from '@/lib/services/health';
 import { actOnHuddle, listHuddles, type HuddleAction } from '@/lib/services/huddle';
+import { transferPledge } from '@/lib/services/transfer';
 import type { DeclineReason } from '@/lib/types';
+
+// Long enough for Nemotron's background pledge advice (after()) to finish.
+export const maxDuration = 60;
 
 const REASONS: DeclineReason[] = ['changeMyAmount', 'unfairSplit', 'totalOrDate', 'out'];
 
@@ -34,6 +41,12 @@ function parse(b: Record<string, unknown>): HuddleAction | null {
       return { action: 'leave' };
     case 'delete':
       return { action: 'delete' };
+    case 'findOptions':
+      return { action: 'findOptions' };
+    case 'reviewProposal':
+      return typeof b.proposalId === 'string' ? { action: 'reviewProposal', proposalId: b.proposalId } : null;
+    case 'respondProposal':
+      return typeof b.accept === 'boolean' ? { action: 'respondProposal', accept: b.accept, reason: typeof b.reason === 'string' ? b.reason : undefined } : null;
     default:
       return null;
   }
@@ -43,9 +56,20 @@ export async function POST(request: NextRequest, ctx: RouteContext<'/api/huddles
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
   const { id } = await ctx.params;
-  const action = parse((await request.json().catch(() => ({}))) as Record<string, unknown>);
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  if (body.action === 'transferNow') {
+    const sent = await transferPledge(viewer, id);
+    if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: sent.status });
+    await runHealthCheck(viewer.memberId, 'you transferred your huddle pledge');
+    return NextResponse.json({ huddles: await listHuddles(viewer.memberId) });
+  }
+  const action = parse(body);
   if (!action) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   const result = await actOnHuddle(viewer, id, action);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  const failed = result.failedPledge;
+  if (failed) after(() => coachFailedPledge(viewer.memberId, failed));
+  const search = result.startSearch;
+  if (search) after(() => runPurchaseAgent(search.huddleId, search.runId));
   return NextResponse.json({ huddles: await listHuddles(viewer.memberId) });
 }
