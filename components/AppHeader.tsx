@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import { PEOPLE } from '@/lib/people';
 import { logout, useMe } from '@/lib/useMe';
+import { useHuddles } from '@/lib/useHuddles';
 import { Avatar } from './ui';
 
 const NAV = [
@@ -15,7 +16,14 @@ const NAV = [
   { href: '/friends', label: 'Friends' },
 ];
 
+// How many of my huddles have a commitment that no longer passes its health check.
+function useHuddleWarnings(): number {
+  const state = useHuddles();
+  return state.status === 'ready' ? state.huddles.filter((h) => h.atRiskCount > 0).length : 0;
+}
+
 function NavLinks({ pathname }: { pathname: string | null }) {
+  const warnings = useHuddleWarnings();
   return (
     <nav aria-label="App" className="flex flex-wrap gap-1">
       {NAV.map((item) => {
@@ -30,6 +38,16 @@ function NavLinks({ pathname }: { pathname: string | null }) {
             }`}
           >
             {item.label}
+            {item.href === '/huddles' && warnings > 0 && (
+              <span
+                role="img"
+                aria-label={`${warnings} huddle${warnings === 1 ? '' : 's'} need attention`}
+                title="A huddle commitment is no longer affordable"
+                className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-bad px-1 text-[12px] font-bold text-white"
+              >
+                !
+              </span>
+            )}
           </Link>
         );
       })}

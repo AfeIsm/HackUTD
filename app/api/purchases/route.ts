@@ -14,6 +14,9 @@ import { requireViewer } from '@/lib/auth/viewer';
 import { buildPicture, type AppPurchase } from '@/lib/services/picture';
 import { runHealthCheck } from '@/lib/services/health';
 
+// Long enough for the background huddle coach (after()) to finish.
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   if (!mongoConfigured()) return NextResponse.json({ error: 'Saving needs MONGODB_URI' }, { status: 503 });
   const viewer = await requireViewer();

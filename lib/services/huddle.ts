@@ -14,11 +14,11 @@ import { capacity, checkPledge, fairSplit } from '../engine/split';
 import { validCents } from '../engine/money';
 import { validDate } from '../engine/validation';
 import {
-  type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
+  type CoachNote, type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
   newParticipant, payers, viewFor, applyLeave,
 } from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
-import type { DeclineReason } from '@/lib/types';
+import type { DeclineReason, FinancialPicture } from '@/lib/types';
 
 interface HuddleDoc extends Omit<Huddle, 'id'> {
   _id: string;
@@ -168,4 +168,51 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
     // someone else changed it in between: re-read and try again
   }
   return fail(409, 'Lots of changes at once. Try again.');
+}
+
+/**
+ * Re-run the private pledge check for every commitment this member has made, against their
+ * CURRENT money (called by runHealthCheck, so after every purchase, re-tag or re-run).
+ * Locked huddles too: a commitment that would now leave them yellow or red gets flagged, and
+ * the flag clears again if their money recovers. Only the flag changes; the pledge stays.
+ */
+export interface NewRisk { huddleId: string; name: string; pledge: number; sourceAccountId: string; targetDate: string }
+
+export async function recheckCommitments(memberId: string, picture: FinancialPicture): Promise<{ atRisk: number; newlyAtRisk: NewRisk[] }> {
+  const col = await huddles();
+  const mine = { $elemMatch: { memberId, committed: true } };
+  const docs = await col.find({ participants: mine, phase: { $ne: 'cancelled' } }).toArray();
+  let atRisk = 0;
+  const newlyAtRisk: NewRisk[] = [];
+  for (const d of docs) {
+    const p = d.participants.find((x) => x.memberId === memberId);
+    if (!p?.pledge || !p.sourceAccountId) continue;
+    const check = checkPledge(picture, {
+      amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}),
+    }, d.targetDate, DEMO_ASOF);
+    const flag = !check.passed;
+    if (flag) atRisk++;
+    const riskReason = flag ? check.reason : null;
+    const riskScore = flag ? check.scoreAfter : null;
+    if (Boolean(p.atRisk) === flag && (p.riskReason ?? null) === riskReason && (p.riskScore ?? null) === riskScore) continue;
+    if (flag && !p.atRisk) newlyAtRisk.push({ huddleId: d._id, name: d.name, pledge: p.pledge, sourceAccountId: p.sourceAccountId, targetDate: d.targetDate });
+    // Positional update touches only this member's row; bumping `version` makes any action
+    // racing with it re-read instead of overwriting the flag.
+    await col.updateOne({ _id: d._id, participants: mine }, {
+      $set: {
+        'participants.$.atRisk': flag, 'participants.$.riskReason': riskReason, 'participants.$.riskScore': riskScore, updatedAt: new Date(),
+        ...(flag ? {} : { 'participants.$.coach': null }), // recovered: the old advice no longer applies
+      },
+      $inc: { version: 1 },
+    });
+  }
+  return { atRisk, newlyAtRisk };
+}
+
+/** Store Nemotron's private plan on this member's row, only if the pledge is still at risk. */
+export async function saveCoachNote(huddleId: string, memberId: string, note: CoachNote): Promise<void> {
+  await (await huddles()).updateOne(
+    { _id: huddleId, participants: { $elemMatch: { memberId, atRisk: true } } },
+    { $set: { 'participants.$.coach': note, updatedAt: new Date() }, $inc: { version: 1 } },
+  );
 }

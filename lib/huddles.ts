@@ -8,6 +8,10 @@
 
 import type { DeclineReason, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
+import type { AgentPlan } from './agent/loop';
+
+// Nemotron's private plan for keeping an at-risk commitment (written automatically).
+export type CoachNote = AgentPlan & { createdAt: string };
 
 export interface Participant {
   memberId: string;
@@ -23,6 +27,12 @@ export interface Participant {
   feedback: string | null; // PRIVATE: only this member ever sees it
   suggestion: { amount: number; text: string } | null; // PRIVATE
   agreed: boolean;
+  // Re-checked on every health check, even after lock: would this pledge STILL keep you green?
+  // Optional because huddles saved before this field existed don't have it.
+  atRisk?: boolean;
+  riskReason?: string | null; // PRIVATE: only this member sees why
+  riskScore?: number | null; // PRIVATE: their score if the pledge went through now
+  coach?: CoachNote | null; // PRIVATE: only this member ever sees it
 }
 
 export interface Huddle {
@@ -41,7 +51,8 @@ export interface Huddle {
 
 export const newParticipant = (memberId: string, userId: string | null, name: string, over: Partial<Participant> = {}): Participant => ({
   memberId, userId, name, isPaying: true, joined: true, pledge: null, sourceAccountId: null, goalId: null,
-  committed: false, checkPassed: null, feedback: null, suggestion: null, agreed: false, ...over,
+  committed: false, checkPassed: null, feedback: null, suggestion: null, agreed: false,
+  atRisk: false, riskReason: null, riskScore: null, ...over,
 });
 
 export const payers = (h: Huddle) => h.participants.filter((p) => p.isPaying);
@@ -93,6 +104,7 @@ export function applyPledge(h: Huddle, memberId: string, pledge: { amount: numbe
   return advance(updateParticipant(resetAgreements(h), memberId, (p) => ({
     ...p, pledge: pledge.amount, sourceAccountId: pledge.sourceAccountId, goalId: pledge.goalId ?? null,
     committed: check.passed, checkPassed: check.passed, feedback: check.reason, suggestion: null,
+    atRisk: false, riskReason: null, riskScore: null, coach: null, // a fresh check replaces any old warning
   })));
 }
 
@@ -157,6 +169,9 @@ export interface HuddleClientView {
   payingCount: number;
   totalCommitted: number | null; // null while pledging
   shortfall: number | null; // null while pledging
+  // Committed pledges that no longer pass the health check. A COUNT only: the group learns that a
+  // commitment is at risk, never whose or why (PLAN.md §8). The person sees their own in `me`.
+  atRiskCount: number;
   fairSplit: { memberId: string; name: string; amount: number }[] | null;
   me: Participant | null; // ONLY the viewer's own row, private fields included
 }
@@ -181,6 +196,7 @@ export function viewFor(h: Huddle, viewerMemberId: string): HuddleClientView {
     payingCount: ps.length,
     totalCommitted: revealed ? total : null,
     shortfall: revealed ? Math.max(0, h.totalCost - total) : null,
+    atRiskCount: h.phase === 'cancelled' ? 0 : ps.filter((p) => p.committed && p.atRisk).length,
     fairSplit:
       h.lastDecline === 'unfairSplit' && h.fairSplit && h.phase !== 'locked'
         ? Object.entries(h.fairSplit).map(([memberId, amount]) => ({
