@@ -49,6 +49,11 @@ describe('detectPaychecks', () => {
   it('returns null for no transactions', () => {
     expect(detectPaychecks([])).toBeNull();
   });
+
+  it('tells semi-monthly (15 days) apart from biweekly (14 days)', () => {
+    const semi = [pay('2026-09-15', 150), pay('2026-09-30', 150), pay('2026-10-15', 150), pay('2026-10-30', 150)];
+    expect(detectPaychecks(semi)?.cadenceDays).toBe(15);
+  });
 });
 
 describe('detectRecurring', () => {
@@ -70,6 +75,11 @@ describe('detectRecurring', () => {
 
   it('returns [] for no transactions', () => {
     expect(detectRecurring([])).toEqual([]);
+  });
+
+  it('does not call two coffees two weeks apart a subscription', () => {
+    const coffee = [buy('2026-09-26', 'Starbucks', 6.95, 'Dining'), buy('2026-10-09', 'Starbucks', 7.45, 'Dining')];
+    expect(detectRecurring(coffee)).toEqual([]);
   });
 });
 

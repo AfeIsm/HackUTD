@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import type { FinancialPicture, Txn } from '@/lib/types';
-import { DEMO_ASOF, getPerson } from '@/lib/demo/people';
+import { DEMO_ASOF, getPerson } from '@/lib/people';
+import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { scoreHealth } from '@/lib/engine/health';
 import { freeSavings } from '@/lib/engine/source';
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const person = getPerson(viewerId);
   const [editsBy, setEditsBy] = useState<Record<string, Edits>>({});
   const [rerunNote, setRerunNote] = useState<string | null>(null);
+  const loaded = usePicture(person.id);
 
   const edits = editsBy[person.id] ?? NO_EDITS;
   const update = (next: Partial<Edits>) => {
@@ -53,18 +55,24 @@ export default function DashboardPage() {
     setRerunNote(null);
   };
 
-  if (!person.picture) {
+  if (loaded.status !== 'ready' || !loaded.picture) {
+    const message =
+      loaded.status === 'loading'
+        ? 'Loading your accounts…'
+        : loaded.status === 'error'
+          ? 'Couldn’t load your accounts. Refresh to try again.'
+          : `${person.name} doesn’t have any accounts yet, so there’s nothing to score.`;
     return (
       <>
         <PageTitle name={person.name} />
         <Card>
-          <p className="m-0 text-ink-2">{person.name} doesn’t have any accounts yet, so there’s nothing to score.</p>
+          <p className="m-0 text-ink-2" aria-live="polite">{message}</p>
         </Card>
       </>
     );
   }
 
-  const picture = applyEdits(person.picture, edits);
+  const picture = applyEdits(loaded.picture, edits);
   const result = scoreHealth(picture, { asOf: DEMO_ASOF, trigger: edits.trigger });
 
   const addPurchase = (p: NewPurchase) => {

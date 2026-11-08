@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PEOPLE, getPerson } from '@/lib/demo/people';
+import { PEOPLE, getPerson } from '@/lib/people';
 import { useViewer } from '@/lib/viewer';
 import { Avatar } from './ui';
 
