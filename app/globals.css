@@ -64,3 +64,17 @@ dialog.login-panel::backdrop { background: oklch(0.2 0.02 40 / 0.25); backdrop-f
   .page-wrap, .login-panel { animation: none; }
 }
 @keyframes ww-fade-in { from { opacity: 0; } }
+
+/* Keep the Money page readable without changing the other wallet tabs. */
+.page-money .page-body { gap: 28px; }
+.page-money .page-body .text-xs { font-size: 0.8125rem; line-height: 1.5; }
+.page-money .page-body .text-muted { color: var(--foreground); opacity: 0.78; }
+.money-section-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.money-section-nav a {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 10px 16px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--paper); color: var(--foreground); font-size: 0.875rem;
+  font-weight: 600; text-decoration: none;
+}
+.money-section-nav a:hover { background: var(--muted); }
+.money-section-nav a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
