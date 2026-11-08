@@ -18,6 +18,7 @@ import { usePicture } from '@/lib/usePicture';
 import { huddleAction, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
 import { PledgeCoach } from './PledgeCoach';
+import { PurchasePanel } from './PurchasePanel';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
@@ -108,6 +109,8 @@ export function HuddleDetail({ id }: { id: string }) {
           {error}
         </p>
       )}
+
+      <PurchasePanel h={h} isCreator={h.createdBy === viewerId} run={run} busy={busy} />
 
       <div className="flex flex-wrap items-start gap-5">
         <section aria-label="Your private panel" className="box-border flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] rounded-[14px] border-2 border-ink bg-surface p-6">
@@ -335,7 +338,7 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={busy} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
+            <button type="button" className={btn} disabled={busy || !!h.purchase?.review} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
             <button type="button" className={btn2} onClick={() => setDeclineReason(declineReason ? null : 'changeMyAmount')}>Request changes</button>
           </div>
           {declineReason && (

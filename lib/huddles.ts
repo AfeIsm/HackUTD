@@ -9,6 +9,7 @@
 import type { DeclineReason, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
 import type { PledgeAdvice } from './engine/pledgeAdvice';
+import type { Proposal, ProposalReview, PurchaseBrief, PurchaseSearch } from './purchase/types';
 import type { AgentPlan } from './agent/loop';
 
 // Nemotron's private plan for keeping an at-risk commitment (written automatically).
@@ -50,6 +51,14 @@ export interface Huddle {
   lastDecline: DeclineReason | null;
   fairSplit: Record<string, number> | null; // amounts only, computed on the server
   participants: Participant[];
+  // Purchase search (optional: a huddle can just be splitting money).
+  brief?: PurchaseBrief | null;
+  search?: PurchaseSearch | null;
+  review?: ProposalReview | null; // a proposal everyone is being asked to accept
+  selected?: Proposal | null; // accepted by everyone
+  searchRuns?: number;
+  proposalFeedback?: { proposal: string; reason: string }[]; // PRIVATE: Nemotron only, never sent to any browser
+  rejectedOfferKeys?: string[];
 }
 
 export const newParticipant = (memberId: string, userId: string | null, name: string, over: Partial<Participant> = {}): Participant => ({
@@ -74,7 +83,7 @@ export function advance(h: Huddle): Huddle {
 const updateParticipant = (h: Huddle, memberId: string, fn: (p: Participant) => Participant): Huddle => ({
   ...h, participants: h.participants.map((p) => (p.memberId === memberId ? fn(p) : p)),
 });
-const resetAgreements = (h: Huddle): Huddle => ({ ...h, participants: h.participants.map((p) => ({ ...p, agreed: false })) });
+export const resetAgreements = (h: Huddle): Huddle => ({ ...h, participants: h.participants.map((p) => ({ ...p, agreed: false })) });
 
 // ---------- actions (each returns the next huddle) ----------
 /** Removing a member invalidates approvals. A one-person group has no remaining workflow. */
@@ -178,6 +187,39 @@ export interface HuddleClientView {
   atRiskCount: number;
   fairSplit: { memberId: string; name: string; amount: number }[] | null;
   me: Participant | null; // ONLY the viewer's own row, private fields included
+  purchase: PurchaseView | null;
+}
+
+export type ProposalView = Proposal & { fundingGap: number | null }; // null until commitments are revealed
+export interface PurchaseView {
+  brief: PurchaseBrief;
+  search: (Omit<PurchaseSearch, 'proposals' | 'fundingKey'> & { proposals: ProposalView[] }) | null;
+  review: { proposal: ProposalView; acceptedCount: number; neededCount: number; iAccepted: boolean; iMustRespond: boolean } | null;
+  selected: ProposalView | null;
+  searchesLeft: number;
+}
+
+export const MAX_SEARCH_RUNS = 6; // each run can spend real SerpApi searches
+
+function purchaseView(h: Huddle, viewerMemberId: string, revealed: boolean, total: number): PurchaseView | null {
+  if (!h.brief) return null;
+  const withGap = (p: Proposal): ProposalView => ({ ...p, fundingGap: revealed ? Math.max(0, p.total - total) : null });
+  const needed = h.participants.filter((p) => p.joined && p.userId);
+  const s = h.search;
+  return {
+    brief: h.brief,
+    // Field by field on purpose: fundingKey holds the committed total, hidden while pledging.
+    search: s ? { runId: s.runId, status: s.status, trigger: s.trigger, startedAt: s.startedAt, steps: s.steps, noSolution: s.noSolution, summary: s.summary, usedDemo: s.usedDemo, proposals: s.proposals.map(withGap) } : null,
+    review: h.review && h.phase !== 'cancelled' ? {
+      proposal: withGap(h.review.proposal),
+      acceptedCount: needed.filter((p) => h.review!.acceptedBy.includes(p.memberId)).length,
+      neededCount: needed.length,
+      iAccepted: h.review.acceptedBy.includes(viewerMemberId),
+      iMustRespond: needed.some((p) => p.memberId === viewerMemberId) && !h.review.acceptedBy.includes(viewerMemberId),
+    } : null,
+    selected: h.selected ? withGap(h.selected) : null,
+    searchesLeft: Math.max(0, MAX_SEARCH_RUNS - (h.searchRuns ?? 0)),
+  };
 }
 
 export function viewFor(h: Huddle, viewerMemberId: string): HuddleClientView {
@@ -208,5 +250,6 @@ export function viewFor(h: Huddle, viewerMemberId: string): HuddleClientView {
           }))
         : null,
     me: h.participants.find((p) => p.memberId === viewerMemberId) ?? null,
+    purchase: purchaseView(h, viewerMemberId, revealed, total),
   };
 }

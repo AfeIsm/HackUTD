@@ -6,6 +6,7 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
 import { requireViewer } from '@/lib/auth/viewer';
 import { coachFailedPledge } from '@/lib/agent/coach';
+import { runPurchaseAgent } from '@/lib/agent/purchase';
 import { actOnHuddle, listHuddles, type HuddleAction } from '@/lib/services/huddle';
 import type { DeclineReason } from '@/lib/types';
 
@@ -38,6 +39,12 @@ function parse(b: Record<string, unknown>): HuddleAction | null {
       return { action: 'leave' };
     case 'delete':
       return { action: 'delete' };
+    case 'findOptions':
+      return { action: 'findOptions' };
+    case 'reviewProposal':
+      return typeof b.proposalId === 'string' ? { action: 'reviewProposal', proposalId: b.proposalId } : null;
+    case 'respondProposal':
+      return typeof b.accept === 'boolean' ? { action: 'respondProposal', accept: b.accept, reason: typeof b.reason === 'string' ? b.reason : undefined } : null;
     default:
       return null;
   }
@@ -53,5 +60,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<'/api/huddles
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   const failed = result.failedPledge;
   if (failed) after(() => coachFailedPledge(viewer.memberId, failed));
+  const search = result.startSearch;
+  if (search) after(() => runPurchaseAgent(search.huddleId, search.runId));
   return NextResponse.json({ huddles: await listHuddles(viewer.memberId) });
 }
