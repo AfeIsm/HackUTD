@@ -7,7 +7,9 @@ import type { AgentAnswer } from './loop';
 
 interface AgentAnswerDoc { memberId: string; dataHash: string; questionKey: string; answer: AgentAnswer; createdAt: Date }
 
-export const questionKey = (q: string) => createHash('sha256').update(q.trim().toLowerCase().replace(/\s+/g, ' ')).digest('hex').slice(0, 32);
+// Bump ANSWER_VERSION when the answer shape changes, so old saved answers are ignored.
+const ANSWER_VERSION = 'v2';
+export const questionKey = (q: string) => createHash('sha256').update(`${ANSWER_VERSION}:${q.trim().toLowerCase().replace(/\s+/g, ' ')}`).digest('hex').slice(0, 32);
 
 const col = async () => (await getDb()).collection<AgentAnswerDoc>('agentAnswers');
 

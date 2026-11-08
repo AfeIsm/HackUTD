@@ -25,7 +25,8 @@ export interface ScenarioResult {
   error?: string;
   actions: string[]; // human labels of what was applied
   before: { score: number | null; status: Status };
-  after?: { score: number | null; status: Status; notGreen: string[]; flags: string[]; problems: string[] };
+  after?: { score: number | null; status: Status; notGreen: string[]; flags: string[]; problems: string[]; worst: { label: string; why: string } | null };
+  purchaseLabel?: string; // set when the scenario includes the purchase being asked about
 }
 
 const brief = (r: HealthResult) => ({ score: r.score, status: r.overall });
@@ -56,7 +57,7 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
     if (!Number.isSafeInteger(cents) || cents <= 0) return fail('Move amount must be positive.');
     if (cents > free) return fail(`Only ${money0(free)} of savings is free (the rest is set aside for goals).`);
     picture = { ...picture, accounts: picture.accounts.map((a) => a.id === savings.id ? { ...a, balance: a.balance - cents } : a.id === checking.id ? { ...a, balance: a.balance + cents } : a) };
-    actions.push(`Move ${money0(cents)} from ${savings.nickname} to ${checking.nickname}`);
+    actions.push(`Short-term: move ${money0(cents)} from ${savings.nickname} to ${checking.nickname}`);
   }
   if (input.weeklySavings) {
     const cents = toCents(input.weeklySavings);
@@ -77,9 +78,16 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
   }
 
   const after = scoreHealth(picture, { asOf, changes, days });
+  // The indicator holding the score back most: red before yellow, then the heaviest weight.
+  const rank = { red: 0, needsInput: 1, yellow: 2, green: 3 } as const;
+  const worst = after.indicators.filter((i) => i.status !== 'green').sort((a, b) => rank[a.status] - rank[b.status] || b.weight - a.weight)[0];
   return {
     ok: true, actions, before: brief(before),
-    after: { ...brief(after), notGreen: after.indicators.filter((i) => i.status !== 'green').map((i) => `${i.label}: ${i.display}`), flags: after.flags, problems: after.missingInputs },
+    purchaseLabel: input.purchase ? actions[actions.length - 1] : undefined,
+    after: {
+      ...brief(after), notGreen: after.indicators.filter((i) => i.status !== 'green').map((i) => `${i.label}: ${i.display}`), flags: after.flags, problems: after.missingInputs,
+      worst: worst ? { label: worst.label, why: worst.explanation } : null,
+    },
   };
 }
 

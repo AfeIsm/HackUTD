@@ -7,8 +7,13 @@ import type { AgentStep, FinancialPicture, Status } from '../types';
 import { money0 } from '../format';
 import { NEMOTRON_MODEL, nemotron } from './client';
 import { TOOLS, afford, engineFixPlan, overview, runScenario, spending, type ScenarioInput } from './tools';
+import { judge, type Verdict } from './verdict';
 
 export interface AgentPlan {
+  verdict: Verdict; // decided by the engine's numbers (lib/agent/verdict.ts), not the AI
+  headline: string;
+  focus: string | null;
+  firstStep: string | null;
   summary: string;
   explanation: string;
   actions: string[];
@@ -36,6 +41,7 @@ const SYSTEM = (asOf: string) => `You are Wallet Whisperer's money coach, workin
 How you work:
 1. Call get_overview first. Call get_spending if the question involves spending, subscriptions or cutting back.
 2. Turn the user's goal and constraints into concrete options, and test 2-3 of them with simulate (or can_afford for a purchase). Respect what the user said they will NOT give up.
+   Prefer real changes, in this order: cancelling non-essential subscriptions the user didn't protect, saving weekly, buying later (after a payday). Moving savings to checking is a LAST resort and only a short-term fix.
 3. Always call simulate (or can_afford) at least once yourself before finishing, even if you also asked get_engine_fix_plan.
    If can_afford says no, try options with simulate: weeklySavings until the date, cancelling non-essential subscriptions, or paying from the savings account, combined with the same purchase.
 4. ALWAYS finish by calling propose_plan with the best option you simulated (fewest changes that meets the goal, ideally a green score). If nothing works, still call propose_plan with no actions and say plainly that it isn't affordable yet. Never end with plain text.
@@ -66,6 +72,29 @@ function parseArgs(raw: string): Record<string, unknown> {
   try { const v = JSON.parse(raw || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
 }
 
+/** Engine-judged plan for a scenario (the AI's words only go in `explanation`). */
+function makePlan(picture: FinancialPicture, input: ScenarioInput, asOf: string, words: { summary?: unknown; explanation?: unknown }): AgentPlan | { error: string } {
+  const scenario = runScenario(picture, input, asOf);
+  if (!scenario.ok) return { error: scenario.error ?? 'Invalid plan.' };
+  const explanation = noNumbers(String(words.explanation ?? ''));
+  return {
+    ...judge(picture, input, scenario, asOf),
+    summary: noNumbers(String(words.summary ?? '')),
+    explanation: explanation.length >= 15 ? explanation : '', // drop junk like a bare 'test'
+    actions: scenario.actions, scoreBefore: scenario.before.score, scoreAfter: scenario.after!.score,
+    statusBefore: scenario.before.status, statusAfter: scenario.after!.status, notGreen: scenario.after!.notGreen, problems: scenario.after!.problems,
+  };
+}
+
+// Best option Nemotron tested: green first, no savings move, fewest actions, highest score.
+function bestTried(tried: { input: ScenarioInput; score: number; green: boolean }[]) {
+  return [...tried].sort((a, b) =>
+    Number(b.green) - Number(a.green)
+    || Number(!!a.input.moveSavingsToChecking) - Number(!!b.input.moveSavingsToChecking)
+    || b.score - a.score
+    || (a.input.cancel?.length ?? 0) - (b.input.cancel?.length ?? 0))[0];
+}
+
 export async function runAgent(picture: FinancialPicture, question: string, asOf: string, onStep: (s: AgentStep) => void): Promise<AgentAnswer> {
   const started = Date.now();
   const steps: AgentStep[] = [];
@@ -75,6 +104,8 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
 
   push({ type: 'plan', text: 'Nemotron is reading your question and planning which checks to run.' });
   let nudged = false;
+  let lastPurchase: ScenarioInput['purchase'] | undefined; // the purchase being asked about, if any
+  const tried: { input: ScenarioInput; score: number; green: boolean }[] = [];
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (Date.now() - started > TIME_LIMIT_MS) break;
     // Last turn (or out of time soon): it MUST propose, so a run always ends in a scored plan.
@@ -100,20 +131,19 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
       const name = call.function.name;
       const args = parseArgs(call.function.arguments);
       if (name === 'propose_plan') {
-        const scenario = runScenario(picture, args as ScenarioInput, asOf); // engine re-scores the final plan
-        if (!scenario.ok) {
-          push({ type: 'result', tool: name, text: `The proposed plan didn't check out (${scenario.error}); asking Nemotron to fix it.` });
-          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: scenario.error }) });
+        // A purchase question is always judged WITH the purchase, even if the model left it out.
+        if (!args.purchase && lastPurchase) args.purchase = lastPurchase;
+        const plan = makePlan(picture, args as ScenarioInput, asOf, args); // engine re-scores the final plan
+        if ('error' in plan) {
+          push({ type: 'result', tool: name, text: `The proposed plan didn't check out (${plan.error}); asking Nemotron to fix it.` });
+          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: plan.error }) });
           continue;
         }
-        const plan: AgentPlan = {
-          summary: noNumbers(String(args.summary ?? '')) || 'Here is your plan.', explanation: noNumbers(String(args.explanation ?? '')),
-          actions: scenario.actions, scoreBefore: scenario.before.score, scoreAfter: scenario.after!.score,
-          statusBefore: scenario.before.status, statusAfter: scenario.after!.status, notGreen: scenario.after!.notGreen, problems: scenario.after!.problems,
-        };
-        push({ type: 'final', tool: name, text: `Proposed a plan, re-checked by the engine: score ${plan.scoreBefore} → ${plan.scoreAfter} (${plan.statusAfter}).` });
+        push({ type: 'final', tool: name, text: `Proposed a plan. The engine re-checked it: ${plan.headline}` });
         return done(plan, null);
       }
+      if (name === 'can_afford' && args.amount && args.accountId) lastPurchase = { amount: Number(args.amount), date: args.date as string | undefined, accountId: String(args.accountId), label: args.label as string | undefined };
+      if (name === 'simulate' && args.purchase) lastPurchase = args.purchase as ScenarioInput['purchase'];
       const result =
         name === 'get_overview' ? overview(picture, asOf)
         : name === 'get_spending' ? spending(picture, asOf, Number(args.days) || 30)
@@ -121,8 +151,23 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
         : name === 'can_afford' ? afford(picture, args as { amount: number; date?: string; accountId: string; label?: string }, asOf)
         : name === 'get_engine_fix_plan' ? engineFixPlan(picture, asOf)
         : { error: `Unknown tool ${name}` };
+      if (name === 'simulate') {
+        const r = result as ReturnType<typeof runScenario>;
+        if (r.ok && r.after) tried.push({ input: args as ScenarioInput, score: r.after.score ?? 0, green: r.after.status === 'green' });
+      }
       push({ type: 'tool', tool: name, text: describe(name, args, result) });
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+    }
+  }
+  // No propose_plan: finish with the best option Nemotron tested (or the purchase alone).
+  const best = bestTried(tried);
+  const input: ScenarioInput | null = best ? { ...best.input } : lastPurchase ? {} : null;
+  if (input) {
+    if (lastPurchase && !input.purchase) input.purchase = lastPurchase;
+    const plan = makePlan(picture, input, asOf, {});
+    if (!('error' in plan)) {
+      push({ type: 'final', text: `Out of steps, so using the best option Nemotron tested. The engine re-checked it: ${plan.headline}` });
+      return done(plan, null);
     }
   }
   const fallback = engineFixPlan(picture, asOf);

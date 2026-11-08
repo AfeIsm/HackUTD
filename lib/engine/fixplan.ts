@@ -52,9 +52,10 @@ const moveMoney = (p: FinancialPicture, from: string, to: string, amount: number
 
 interface Candidate { cuts: string[]; cutMonthly: number; move: number; result: HealthResult; picture: FinancialPicture; changes: Change[] }
 
-// Fewest cancellations, then the smallest monthly cut, then the smallest transfer.
+// Moving savings is a LAST resort (it shuffles your own money and shrinks your cushion): any plan
+// that works without it wins. Then fewest cancellations, smallest monthly cut, smallest transfer.
 const lessDisruptive = (a: Candidate, b: Candidate) =>
-  a.cuts.length - b.cuts.length || a.cutMonthly - b.cutMonthly || a.move - b.move;
+  Number(a.move > 0) - Number(b.move > 0) || a.cuts.length - b.cuts.length || a.cutMonthly - b.cutMonthly || a.move - b.move;
 
 function lowestChecking(p: FinancialPicture, checkingIds: string[], changes: Change[], asOf: string) {
   const f = forecastBalance(p, { asOf, changes });
@@ -120,8 +121,8 @@ export function buildFixPlan(p: FinancialPicture, asOf: string): FixPlan | null 
       const to = owned.find((a) => a.id === low.id);
       steps.push({
         kind: 'move',
-        label: `Move ${money0(chosen.move)} from ${savings.name} to ${to?.nickname ?? 'checking'}`,
-        detail: `Your checking would dip to ${money0(low.balance)} on ${shortDate(low.date)}. This keeps it ${money0(Math.min(BUFFER, low.balance + chosen.move))}+ above your bills. Uses free savings only, never money set aside for a goal.`,
+        label: `Short-term: move ${money0(chosen.move)} from ${savings.name} to ${to?.nickname ?? 'checking'}`,
+        detail: `Your checking would dip to ${money0(low.balance)} on ${shortDate(low.date)}, too close to your bills. This covers the dip, but it uses emergency savings, so it's a stopgap: nothing else we tested gets you there. Never touches money set aside for a goal.`,
         amount: chosen.move, fromAccountId: savings.id, toAccountId: low.id,
       });
     }

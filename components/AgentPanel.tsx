@@ -15,6 +15,16 @@ const EXAMPLES = [
   'Which subscriptions should I cut first?',
 ];
 
+const VERDICT: Record<NonNullable<AgentAnswer['plan']>['verdict'], { label: string; cls: string }> = {
+  yes: { label: 'Yes', cls: 'bg-good-bg text-good' },
+  yesIf: { label: 'Yes, if…', cls: 'bg-good-bg text-good' },
+  okNotGreen: { label: 'Affordable, fix your score first', cls: 'bg-warn-bg text-warn' },
+  reachesGreen: { label: 'Gets you to green', cls: 'bg-good-bg text-good' },
+  improves: { label: 'Better, not green yet', cls: 'bg-warn-bg text-warn' },
+  notYet: { label: 'Not yet', cls: 'bg-bad-bg text-bad' },
+  noChange: { label: 'No change', cls: 'bg-soft text-muted' },
+};
+
 const STEP_ICON: Record<AgentStep['type'], string> = { plan: '🧭', tool: '🔧', result: '↺', final: '✓' };
 
 export function AgentPanel() {
@@ -108,18 +118,24 @@ export function AgentPanel() {
       {plan && (
         <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <strong className="text-[17px]">{plan.summary}</strong>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={`w-fit rounded-full px-2.5 py-1 text-[13px] font-bold ${VERDICT[plan.verdict].cls}`}>{VERDICT[plan.verdict].label}</span>
+              <strong className="text-[17px]">{plan.headline}</strong>
+            </div>
             <div className="flex items-center gap-2 text-[15px] font-semibold">
               <span>{plan.scoreBefore}</span><StatusPill status={plan.statusBefore} />
               <span aria-hidden="true">→</span><span className="sr-only">to</span>
               <span>{plan.scoreAfter}</span><StatusPill status={plan.statusAfter} />
             </div>
           </div>
+          {plan.actions.length > 0 && <span className="text-[13px] font-semibold text-muted">The plan the engine checked:</span>}
           {plan.actions.length > 0 ? (
             <ul className="m-0 flex flex-col gap-1 pl-5 text-[15px]">
               {plan.actions.map((a) => <li key={a}>{a}</li>)}
             </ul>
           ) : <p className="m-0 text-[15px]">No change needed, or nothing tested works yet.</p>}
+          {plan.focus && <p className="m-0 rounded-lg bg-warn-bg px-3 py-2 text-[14px] text-warn"><span className="font-semibold">Focus on:</span> {plan.focus}</p>}
+          {plan.firstStep && <p className="m-0 rounded-lg bg-accent-bg px-3 py-2 text-[14px]"><span className="font-semibold">First step:</span> {plan.firstStep}</p>}
           {plan.explanation && <p className="m-0 text-[14px] text-ink-2"><span className="font-semibold">Nemotron:</span> {plan.explanation}</p>}
           {plan.notGreen.length > 0 && <p className="m-0 text-[13px] text-warn">Still not green after this: {plan.notGreen.join(' · ')}</p>}
           <p className="m-0 text-xs text-muted">
