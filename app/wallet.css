@@ -159,9 +159,121 @@ body {
   transition: opacity 400ms;
 }
 .wallet[data-open="false"] .wallet-fold { opacity: 0; }
-/* Stay visible until the closing flap has covered them. Opening shows them at once. */
-.wallet[data-open="false"] .wallet-right .pockets { visibility: hidden; transition: visibility 0s linear 900ms; }
-.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets { transition-delay: 200ms; }
+/* Cards and pocket panels hide when closed so they don't poke through the flap */
+.wallet[data-open="false"] .wallet-right .pockets .card-slots-group,
+.wallet[data-open="false"] .wallet-right .pockets .nav-object.is-card,
+.wallet[data-open="false"] .wallet-right .pockets .slot-pocket,
+.wallet[data-open="false"] .wallet-right .pockets .cash-pocket {
+  visibility: hidden;
+  transition: visibility 0s linear 900ms;
+}
+.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets .card-slots-group,
+.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets .nav-object.is-card,
+.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets .slot-pocket,
+.wallet[data-open="false"][data-reduced="true"] .wallet-right .pockets .cash-pocket {
+  transition-delay: 200ms;
+}
+
+/* The dollar bill stays visible and peeks out from the top of the folded wallet */
+.wallet[data-open="false"] .wallet-right .pockets .nav-object.is-cash {
+  visibility: visible !important;
+  top: -46px !important;
+  z-index: 25;
+  transform: translateZ(5px) rotate(-1.4deg);
+  transition: transform 600ms cubic-bezier(0.3, 0.7, 0.2, 1), top 600ms ease;
+  filter: drop-shadow(0 6px 14px color-mix(in oklab, var(--leather-dark) 65%, black));
+}
+.wallet[data-open="false"] .nav-object.is-cash .cash-left {
+  transform: rotateY(8deg);
+  filter: brightness(0.96);
+}
+.wallet[data-open="false"] .nav-object.is-cash .cash-right {
+  transform: rotateY(-8deg);
+}
+
+/* ---- invisible draggable box around the button (tall heightwise, width = ~2x button-to-wallet gap) ---- */
+.wallet-drag-box {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 76px;
+  height: 480px;
+  border-radius: 38px;
+  z-index: 55;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.wallet-drag-box:active {
+  cursor: grabbing;
+}
+/* When dragging: real-time sync with zero transition delay, keep inner pockets visible */
+.wallet[data-dragging="true"],
+.wallet[data-dragging="true"] .wallet-flap {
+  transition-duration: 0ms !important;
+}
+.wallet[data-dragging="true"] .wallet-right .pockets .card-slots-group,
+.wallet[data-dragging="true"] .wallet-right .pockets .nav-object.is-card,
+.wallet[data-dragging="true"] .wallet-right .pockets .slot-pocket,
+.wallet[data-dragging="true"] .wallet-right .pockets .cash-pocket {
+  visibility: visible !important;
+}
+/* When open: centered around the left button (outside the wallet, no contact with cards) */
+.drag-box-left {
+  left: -94px;
+}
+/* When closed: centered around the right button (outside the closed wallet) */
+.drag-box-right {
+  right: -94px;
+}
+
+/* ---- edge fold / unfold buttons (subtle, semi-transparent, chevron only, spaced away, completely still) ---- */
+.wallet-edge-tab {
+  position: absolute;
+  top: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--paper) 22%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in oklab, var(--paper) 32%, transparent);
+  color: color-mix(in oklab, var(--foreground) 75%, transparent);
+  opacity: 0.55;
+  box-shadow: 0 4px 12px color-mix(in oklab, black 16%, transparent);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: opacity 220ms ease, background 160ms ease, color 160ms ease;
+}
+.wallet-edge-tab:hover {
+  opacity: 0.95;
+  background: color-mix(in oklab, var(--paper) 55%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 6px 16px color-mix(in oklab, black 24%, transparent);
+}
+.wallet-edge-tab:active {
+  background: color-mix(in oklab, var(--paper) 70%, transparent);
+  box-shadow: 0 2px 8px color-mix(in oklab, black 20%, transparent);
+}
+.tab-left-close {
+  left: 0;
+  transform: translateY(-50%) translateX(calc(-100% - 38px));
+}
+.tab-right-open {
+  right: 0;
+  transform: translateY(-50%) translateX(calc(100% + 38px));
+}
+.wallet-edge-tab.is-flipping {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
 
 .leather {
   background-color: var(--leather);

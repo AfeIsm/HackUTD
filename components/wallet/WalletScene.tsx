@@ -8,6 +8,7 @@ import { CardFace } from "./CardFace";
 import { CARDS, SLOT_ORDER, type CardId } from "./cards";
 import { IdCard } from "./IdCard";
 import { MOTION, useWallet } from "./WalletContext";
+import { WalletFoldHandle } from "./WalletFoldHandle";
 const leatherTexture = "/wallet/wallet-leather.jpg";
 import { FallingBills } from "./FallingBills";
 
@@ -42,11 +43,30 @@ export function WalletScene() {
   const returning = w.flight && ['full', 'shrink', 'insert'].includes(w.flight.phase);
   const pageOpen = w.activeCard !== null && !returning;
 
+  // Real-time drag progress sync: null = not dragging, 0 = open, 1 = closed
+  const [dragProgress, setDragProgress] = useState<number | null>(null);
+
   // Shift: closed → center the folded object (right half). Phone → one half at a time.
+  const openShift = phone
+    ? (w.side === "left" ? HALF_W / 2 : -HALF_W / 2)
+    : (user ? -36 : 0);
+  const closedShift = -HALF_W / 2;
+
   let shift = 0;
-  if (!w.open) shift = -HALF_W / 2;
-  else if (phone) shift = w.side === "left" ? HALF_W / 2 : -HALF_W / 2;
-  else if (user) shift = -36;
+  if (!w.open) shift = closedShift;
+  else shift = openShift;
+
+  const isDragging = dragProgress !== null;
+  const currentProgress = dragProgress ?? (w.open ? 0 : 1);
+  const liveShift = isDragging
+    ? openShift + currentProgress * (closedShift - openShift)
+    : shift;
+  const liveRotation = isDragging
+    ? currentProgress * 180
+    : (w.open ? 0 : 180);
+  const liveFrameWidth = isDragging
+    ? (HALF_W + (1 - currentProgress) * HALF_W) * scale
+    : (phone || !w.open ? HALF_W : HALF_W * 2) * scale;
 
   const start = () => {
     w.openWallet();
@@ -58,6 +78,7 @@ export function WalletScene() {
   }, [w.open, w.instant]);
 
   const dur = w.instant ? 0 : w.reduced ? 200 : MOTION.unfold;
+  const transitionDur = isDragging ? 0 : dur;
 
   return (
     <div
@@ -65,42 +86,45 @@ export function WalletScene() {
       aria-hidden={pageOpen || undefined}
       inert={pageOpen || undefined}
     >
-      {!w.open && !pageOpen && <FallingBills />}
-      <div className="wallet-frame" style={{ width: (phone || !w.open ? HALF_W : HALF_W * 2) * scale, height: H * scale }}>
+      {!w.open && !pageOpen && !isDragging && <FallingBills />}
+      <div className="wallet-frame" style={{ width: liveFrameWidth, height: H * scale }}>
       <div
         className="wallet"
         data-open={w.open}
         data-reduced={w.reduced}
+        data-dragging={isDragging ? "true" : undefined}
         style={{
           width: HALF_W * 2,
           height: H,
-          transform: `scale(${scale}) translateX(${shift}px)`,
-          transitionDuration: `${dur}ms`,
+          transform: `scale(${scale}) translateX(${liveShift}px)`,
+          transitionDuration: `${transitionDur}ms`,
         }}
       >
         {/* Right interior: cash compartment + four card slots */}
-        <section className="wallet-half wallet-right leather" aria-label="Wallet pockets" inert={!w.open || (phone && w.side !== 'right') || undefined}>
+        <section className="wallet-half wallet-right leather" aria-label="Wallet pockets" inert={(phone && w.side !== 'right') || undefined}>
           <LeatherTexture />
           <div className="stitch" aria-hidden />
           <div className="cash-well" aria-hidden>
             <LeatherTexture />
           </div>
           <div className="pockets">
-          <NavObject id="buy" index={-1} />
-          {SLOT_ORDER.map((id, i) => (
-            <NavObject key={id} id={id} index={i} />
-          ))}
-          <div className="slot-pocket slot-pocket-base" style={{ top: 112 + 3 * 62 + 50, zIndex: 20 }} aria-hidden>
-            <LeatherTexture />
-            <span className="pocket-emboss font-display">Your finances stay private.</span>
-          </div>
+            <NavObject id="buy" index={-1} />
+            <div className="card-slots-group" inert={!w.open || undefined}>
+              {SLOT_ORDER.map((id, i) => (
+                <NavObject key={id} id={id} index={i} />
+              ))}
+              <div className="slot-pocket slot-pocket-base" style={{ top: 112 + 3 * 62 + 50, zIndex: 20 }} aria-hidden>
+                <LeatherTexture />
+                <span className="pocket-emboss font-display">Your finances stay private.</span>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Left flap: interior (ID pocket) on the front, exterior cover on the back */}
         <div
           className="wallet-flap"
-          style={{ transform: w.open ? "rotateY(0deg)" : "rotateY(180deg)", transitionDuration: `${dur}ms` }}
+          style={{ transform: `rotateY(${liveRotation}deg)`, transitionDuration: `${transitionDur}ms` }}
         >
           <section className="flap-face flap-inside leather" aria-label="ID pocket" inert={!w.open || (phone && w.side !== 'left') || undefined}>
             <LeatherTexture />
@@ -129,10 +153,23 @@ export function WalletScene() {
         <div className="wallet-fold" aria-hidden>
           <LeatherTexture />
         </div>
+
+        {/* Subtle semi-transparent edge button to close (left) or open (right) */}
+        {!pageOpen && (
+          <WalletFoldHandle
+            open={w.open}
+            onClose={w.closeWallet}
+            onOpen={w.openWallet}
+            dur={dur}
+            disabled={w.loggingOut}
+            scale={scale}
+            onDragProgress={setDragProgress}
+          />
+        )}
       </div>
       </div>
 
-      {!w.open && <button ref={startBtn} type="button" className="start-btn inline-flex items-center justify-center gap-3" disabled={w.loggingOut} onClick={start}>Start Saving <span aria-hidden="true">→</span></button>}
+      {!w.open && !isDragging && <button ref={startBtn} type="button" className="start-btn inline-flex items-center justify-center gap-3" disabled={w.loggingOut} onClick={start}>Start Saving <span aria-hidden="true">→</span></button>}
 
       {phone && w.open && !pageOpen && (
         <button type="button" className="side-toggle" onClick={() => w.setSide(w.side === "left" ? "right" : "left")}>
