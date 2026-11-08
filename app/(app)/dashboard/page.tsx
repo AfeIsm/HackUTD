@@ -128,6 +128,37 @@ export default function DashboardPage() {
       </span>}
       actions={<div className="max-w-sm">{randomizeControl}</div>}>
       <div className="grid gap-6">
+      <nav aria-label="Money page sections" className="money-section-nav">
+        <a href="#money-accounts">Accounts</a>
+        <a href="#money-health">Health score</a>
+        <a href="#money-forecast">Upcoming bills</a>
+        <a href="#money-purchase">Add a purchase</a>
+      </nav>
+
+      <section id="money-accounts" aria-labelledby="accounts-heading" className="scroll-mt-6">
+        <div className="mb-4">
+          <h2 id="accounts-heading" className="section-title m-0">Your accounts at a glance</h2>
+          <p className="mt-1 mb-0 text-sm text-muted">Account balances, money set aside, and your next paycheck.</p>
+        </div>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4">
+        {checking.map((a) => (
+          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)} sub="Checking · account balance" />
+        ))}
+        {savings.map((a) => (
+          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
+            sub={`Savings · ${money0(picture.goals.filter((g) => g.accountId === a.id).reduce((s, g) => s + g.amount, 0))} set aside · ${money0(freeSavings(picture, a.id))} free`} />
+        ))}
+        {cards.map((a) => (
+          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
+            sub={a.limit ? `Credit card · owed · ${Math.round((a.balance / a.limit) * 100)}% of ${money0(a.limit)} limit` : 'Credit card · amount owed'} />
+        ))}
+        <SmallCard
+          label="Paycheck · detected"
+          value={picture.paycheck ? money0(picture.paycheck.avgAmount) : '—'}
+          sub={picture.paycheck ? `Every ${picture.paycheck.cadenceDays} days · next ${dayDate(picture.paycheck.nextDate)}` : 'No regular paycheck found'}
+        />
+        </div>
+      </section>
 
       {result.missingInputs.length > 0 && (
         <Card label="Complete your assessment">
@@ -151,7 +182,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <section aria-label="Financial health" className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <section id="money-health" aria-label="Financial health" className="grid scroll-mt-6 gap-6 lg:grid-cols-[280px_1fr]">
         <Card label="Health score" className="flex flex-col items-center gap-4 text-center">
           <Eyebrow className="self-start">Health score</Eyebrow>
           <ScoreGauge score={result.score} status={result.overall} />
@@ -169,41 +200,19 @@ export default function DashboardPage() {
         </Card>
 
         <Card label="Indicators" className="flex min-w-0 flex-col gap-1">
-          <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h2 className="section-title m-0">What makes up your score</h2>
-            <span className="text-[13px] text-muted">points × weight</span>
-          </div>
+          <h2 className="section-title m-0 mb-2">What makes up your score</h2>
           <IndicatorList indicators={result.indicators} />
-          <p className="mt-2 text-xs text-muted">
-            Healthy 75–100 · Watch 50–74 · At risk 0–49. If essential bills aren’t covered, the score is At risk no matter what.
-          </p>
+          <details className="mt-2">
+            <summary className="w-fit rounded-sm py-2 text-sm font-semibold text-ink-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">How scoring works</summary>
+            <p className="mb-0 mt-2 text-sm leading-relaxed text-muted">
+              Healthy 75–100 · Watch 50–74 · At risk 0–49. If essential bills aren’t covered, the score is At risk no matter what.
+            </p>
+          </details>
         </Card>
       </section>
 
       {payload.plan && <FixPlanCard key={payload.plan.dataHash} plan={payload.plan} onApplied={applied} />}
       <AgentPanel onApplied={applied} />
-
-      <section aria-label="Accounts" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {checking.map((a) => (
-          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)} sub="Everyday spending" />
-        ))}
-        {savings.map((a) => (
-          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
-            sub={`${money0(picture.goals.filter((g) => g.accountId === a.id).reduce((s, g) => s + g.amount, 0))} set aside · ${money0(freeSavings(picture, a.id))} free`} />
-        ))}
-        {cards.map((a) => (
-          <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
-            sub={a.limit ? `Owed · ${Math.round((a.balance / a.limit) * 100)}% of ${money0(a.limit)} limit` : 'Owed'} />
-        ))}
-        <SmallCard
-          label="Paycheck · detected"
-          value={picture.paycheck ? money0(picture.paycheck.avgAmount) : '—'}
-          sub={picture.paycheck ? `Every ${picture.paycheck.cadenceDays} days · next ${dayDate(picture.paycheck.nextDate)}` : 'No regular paycheck found'}
-        />
-        <SmallCard label="Savings goals"
-          value={picture.goals.length === 1 ? `${picture.goals[0].name} · ${money0(picture.goals[0].amount)}` : picture.goals.length ? `${picture.goals.length} goals` : 'None yet'}
-          sub={picture.goals.length ? 'Set aside in your savings accounts' : 'Set money aside for a goal below'} small />
-      </section>
 
       <SavingsGoals
         picture={picture}
@@ -212,11 +221,11 @@ export default function DashboardPage() {
         onRemove={(id) => void send('/api/goals', 'DELETE', { id }, () => 'Goal removed. The money is back in your free savings.')}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+      <div id="money-forecast" className="grid scroll-mt-6 gap-6">
         <Card label="Forecast" className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="section-title m-0">Next 30 days in checking</h2>
-            <span className="text-[13px] text-muted">paychecks minus bills</span>
+            <span className="text-sm text-muted">Projected balance after income and expenses</span>
           </div>
           {checking.length === 0 && <p className="text-sm text-muted">No checking accounts are available for forecasting.</p>}
           {checking.map((a) => (
@@ -232,7 +241,7 @@ export default function DashboardPage() {
           <ObligationsList obligations={picture.obligations} onToggle={toggleTag} />
         </Card>
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div id="money-purchase" className="grid scroll-mt-6 gap-6 lg:grid-cols-[1.6fr_1fr]">
         <Card label="Add a purchase" className="min-w-0">
           <h2 className="section-title m-0 mb-4">Add a purchase</h2>
           <AddPurchase picture={picture} onAdd={addPurchase} />
@@ -265,12 +274,12 @@ export default function DashboardPage() {
   );
 }
 
-function SmallCard({ label, value, sub, small = false }: { label: string; value: string; sub: string; small?: boolean }) {
+function SmallCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="paper-card compact flex min-w-0 flex-col gap-2">
-      <Eyebrow>{label}</Eyebrow>
-      <span className={`font-display font-semibold ${small ? 'text-xl' : 'text-3xl'} tabular-nums`}>{value}</span>
-      <span className="text-[13px] text-muted">{sub}</span>
+      <span className="text-sm font-semibold text-ink-2">{label}</span>
+      <span className="font-display text-3xl font-semibold leading-tight tracking-tight tabular-nums">{value}</span>
+      <span className="text-sm leading-relaxed text-muted">{sub}</span>
     </div>
   );
 }
