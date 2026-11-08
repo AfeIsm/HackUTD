@@ -173,11 +173,29 @@ export interface AffordResult {
   verifiedAlternative?: { date: string; sourceAccountId: string; result: HealthResult };
 }
 
+// One concrete step of a fix plan. amount meaning depends on kind:
+// cancel = monthly saving, move = one-time transfer, save = weekly transfer.
+export interface FixStep {
+  kind: 'cancel' | 'move' | 'save';
+  label: string; // "Cancel Hulu"
+  detail: string; // why / what it does, with exact numbers from the engine
+  amount: MoneyCents;
+  obligationKey?: string;
+  fromAccountId?: string;
+  toAccountId?: string;
+  weeks?: number; // save only: how long until the target is reached
+}
+
+// Built by lib/engine/fixplan.ts (plain math, no AI). Same data → same plan (saved by dataHash).
 export interface FixPlan {
   summary: string;
-  changes: Change[];
+  steps: FixStep[];
+  changes: Change[]; // the scored what-if changes (cancellations); a move is applied to balances
   scoreBefore: number | null;
   scoreAfter: number | null;
+  statusBefore: Status;
+  statusAfter: Status;
+  stillNotGreen: string[]; // indicator labels still not green after the plan
   dataHash: string; // reused while the hash matches
 }
 
