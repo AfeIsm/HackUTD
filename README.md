@@ -431,6 +431,75 @@ The main demonstration uses two devices, for example a laptop logged in as `alex
 
 ## Local setup contract
 
+### Automatic sandbox onboarding
+
+The signed-in logo returns to My Money, and visiting `/` with a valid session redirects there.
+Login cookies last for the browser session; explicit logout invalidates the server record.
+`/api/auth/me` also converts older persistent cookies on the next page load. The server retains
+the seven-day expiry cap. Browser session-restore settings can restore session cookies.
+
+Every Huddle detail page provides **Leave huddle** and an owner-only **Delete huddle for everyone**.
+Leaving removes the member, clears remaining approvals and fair-split suggestions, and transfers
+ownership to another account holder when necessary. At one or fewer remaining participants,
+the Huddle is deleted; groups require at least two people at creation. Pending invitees count as
+participants. Declining the final invite applies the same cleanup. Deletions use version checks
+and disappear from other windows through the five-second poll. Locked prototype Huddles still
+only schedule transfers; this removal flow does not move or refund money.
+
+New sign-ups read one of our seeded synthetic customers through the live Nessie API and
+randomly vary its checking/savings balances, regular payroll, bills, subscriptions and available
+loan payment data. The resulting records are created under the new user's own Nessie customer.
+Managed dependents use the smaller dependent template. MongoDB stores provider IDs and step receipts
+in `members`, normalized integer-cent banking data in `financialPictures`, and computed results
+in `healthSnapshots`. This uses the existing November 7, 2026 demo clock. These are synthetic
+finances, not a connection to the user's real bank. No new dependencies are needed.
+
+Every household member now joins by username invitation and accepts on their own account.
+Spouses and dependents use the same acceptance flow. Pending and declined invitations grant
+no membership or financial visibility. Direct creation of no-login household members is disabled;
+old managed records are retained in storage but are not automatically household members.
+Test separate logins using incognito, browser profiles or two devices.
+
+My Money has a **Randomize demo finances** button (`POST /api/demo/randomize`). It creates a new
+account pair for the signed-in user, reads the records back from Nessie, updates MongoDB and
+reruns the engine. Each completed adult reroll chooses a different template and fresh random
+amounts. Request IDs prevent retrying the same completed request from creating another profile;
+failed generations resume their saved profile and receipts. Only the new account pair participates
+in bank refreshes and forecasts; previous Nessie records and `demoGenerations` receipts are retained.
+Previous purchases, tags and goals remain tied to their old accounts and are not replayed onto
+the new scenario. Score history remains available. Non-cancelled Huddles block rerolling to
+preserve existing pledges and agreements. No shared seed or other user's records are modified.
+
+Configure `MONGODB_URI`, `MONGODB_DB=walletwhisperer`, `NESSIE_API_KEY`, `USE_LOCAL_DATA=false`
+and the event-verified `NESSIE_BASE_URL` locally and on Vercel. Confirm the create/read endpoints
+against your team's key. Deployments must support the onboarding routes' configured 120-second
+maximum duration. Never rerun the shared seed script.
+
+Signup waits for setup. On failure, the login still exists and the welcome screen offers a
+retry (`POST /api/auth/setup`). `GET /api/auth/setup` reports status. Provider writes are saved
+step by step. A timed-out write retains `members.inFlight`: inspect Nessie and reconcile before
+retrying. If the record exists, save its ID under `members.steps[stepName]` and clear `inFlight`.
+Only clear it without an ID after establishing that no record was created. A terminated worker's
+lock expires after three minutes. Never blindly repeat ambiguous writes.
+
+New members refresh their MongoDB bank cache on reads after 30 seconds. Failed syncs retain
+the last valid picture and mark it stale/incomplete, blocking affordability approval. App-added
+purchases and obligation overrides remain separate and are applied over the bank snapshot.
+
+Household sharing is controlled by six switches on the Household page: balances, income,
+bills/loans, goals, recent transactions and health score. Every switch defaults off. Each member
+controls only their own choices, including when the viewer is the household owner. Settings are
+saved in `householdSharing`, keyed by household owner and grantor, and apply to accepted members
+of that household. Changes refresh on other active windows approximately every five seconds and
+on focus. A failed refresh clears displayed shared data.
+
+`GET /api/household` returns explicit category projections, never a full financial picture.
+Health-only sharing returns score/status without indicators, financial ratios, flags or forecasts.
+Recent transactions are limited to twenty. Household totals are not computed from hidden data.
+`PATCH /api/household {scope, enabled}` derives the grantor from the session and updates one switch.
+`/api/picture` remains self-only; legacy broad `sharingGrants` cannot bypass the switches. Your
+own household card always shows your own data without changing what you share with others.
+
 The application scaffold and scripts now exist. Install dependencies and start the app with `npm install` and `npm run dev`. The seed script supports the synthetic demo data; review its mode and provider configuration before running it. The sequence below includes seeding:
 
 ```bash

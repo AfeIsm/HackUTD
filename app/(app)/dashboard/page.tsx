@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 import type { HealthPayload } from '@/lib/services/health';
 import { freeSavings } from '@/lib/engine/source';
 import { dayDate, money, money0 } from '@/lib/format';
-import { getPerson } from '@/lib/people';
 import { invalidatePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { AddPurchase, type NewPurchase } from '@/components/AddPurchase';
@@ -15,6 +14,7 @@ import { ForecastChart } from '@/components/ForecastChart';
 import { IndicatorList } from '@/components/IndicatorList';
 import { ObligationsList } from '@/components/ObligationsList';
 import { ScoreGauge } from '@/components/ScoreGauge';
+import { RandomizeFinances } from '@/components/RandomizeFinances';
 import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -26,8 +26,7 @@ interface Loaded {
 }
 
 export default function DashboardPage() {
-  const { viewerId } = useViewer();
-  const person = getPerson(viewerId);
+  const { person } = useViewer();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
@@ -49,6 +48,11 @@ export default function DashboardPage() {
   const result = payload?.result;
   const picture = payload?.picture;
   const shownNote = note?.id === person.id ? note : null;
+  const randomizeControl = <RandomizeFinances disabled={busy} onComplete={(next) => {
+    setLoaded({ id: person.id, payload: next });
+    invalidatePicture(person.id);
+    setNote({ id: person.id, text: 'Generated a new Nessie demo profile and recalculated your score.', ok: true });
+  }} />;
 
   // Save something, then show the fresh (automatically re-run) health check
   const send = async (url: string, method: string, body: Record<string, unknown>, describe: (p: HealthPayload) => string | null) => {
@@ -81,6 +85,7 @@ export default function DashboardPage() {
         <PageTitle name={person.name} />
         <Card>
           <p className="m-0 text-ink-2" aria-live="polite">{message}</p>
+          {randomizeControl}
         </Card>
       </>
     );
@@ -105,6 +110,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageTitle name={person.name} />
+      {randomizeControl}
 
       {result.missingInputs.length > 0 && (
         <Card label="Complete your assessment">

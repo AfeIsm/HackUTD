@@ -91,6 +91,7 @@ export function SignupForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <p className="m-0 text-sm text-muted">Your account starts with synthetic Nessie demo finances. Setup may take a moment.</p>
       <Field label="Name" htmlFor="name" hint={fieldError('name')}>
         <input id="name" className={input} autoComplete="name" value={form.name} onChange={set('name')} required />
       </Field>
@@ -126,7 +127,7 @@ export function SignupForm() {
         </p>
       )}
       <button type="submit" className={`${btn} w-full`} disabled={!canSubmit}>
-        {busy ? 'Creating account…' : 'Create account'}
+        {busy ? 'Creating account and demo finances…' : 'Create account'}
       </button>
     </form>
   );

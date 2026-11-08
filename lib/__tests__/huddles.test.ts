@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkPledge } from '../engine/split';
-import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, newParticipant, viewFor } from '../huddles';
+import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor } from '../huddles';
 import { ASOF, alex } from '../engine/__tests__/fixtures';
 
 const huddle = (participants = [newParticipant('alex', 'u1', 'Alex')], totalCost = 100): Huddle => ({
@@ -10,6 +10,24 @@ const huddle = (participants = [newParticipant('alex', 'u1', 'Alex')], totalCost
 const rich = { ...alex, accounts: alex.accounts.map((a) => (a.id === 'a1' ? { ...a, balance: 80000 } : a)) };
 
 describe('Huddle phase machine + privacy filter', () => {
+  it('removes a departing member and resets the remaining approvals', () => {
+    const h = { ...huddle(['alex', 'sam', 'jordan'].map((id) => newParticipant(id, id, id, { committed: true, agreed: true, pledge: 100 }))), phase: 'locked' as const };
+    const after = applyLeave(h, 'sam')!;
+    expect(after.participants.map((p) => p.memberId)).toEqual(['alex', 'jordan']);
+    expect(after.participants.every((p) => !p.agreed)).toBe(true);
+    expect(after.phase).toBe('agreeing');
+    expect(after.fairSplit).toBeNull();
+    expect(h.participants).toHaveLength(3);
+  });
+
+  it('deletes a two-person group when one person leaves', () => {
+    expect(applyLeave(huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('sam', 'u2', 'Sam')]), 'sam')).toBeNull();
+  });
+
+  it('transfers ownership to another joined account holder when the owner leaves', () => {
+    const h = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('leo', null, 'Leo'), newParticipant('sam', 'u2', 'Sam')]);
+    expect(applyLeave(h, 'alex')?.createdBy).toBe('sam');
+  });
   it('does not commit an unaffordable or yellow pledge, and never leaks the account', () => {
     const pledge = { amount: 100, sourceAccountId: 'a1' };
     const h = applyPledge(huddle(), 'alex', pledge, checkPledge(alex, pledge, '2027-03-20', ASOF));

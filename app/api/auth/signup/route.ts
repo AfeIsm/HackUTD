@@ -7,6 +7,11 @@ import { hashPassword } from '@/lib/auth/password';
 import { createUser, toPublicUser } from '@/lib/auth/users';
 import { startSession } from '@/lib/auth/session';
 import { cleanUsername, emailError, nameError, passwordError, usernameError } from '@/lib/auth/validate';
+import { provisionUser } from '@/lib/nessie/provision';
+import { findUserById } from '@/lib/auth/users';
+import { runHealthCheck } from '@/lib/services/health';
+
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   if (!mongoConfigured()) return NextResponse.json({ error: 'Accounts need MONGODB_URI' }, { status: 503 });
@@ -32,5 +37,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error, field: result.taken }, { status: 409 });
   }
   await startSession(result.user._id);
-  return NextResponse.json({ user: toPublicUser(result.user) }, { status: 201 });
+  try {
+    const memberId = await provisionUser(result.user._id);
+    const health = await runHealthCheck(memberId, 'new sandbox account');
+    const updated = await findUserById(result.user._id);
+    return NextResponse.json({ user: toPublicUser(updated ?? result.user), setup: 'ready', health }, { status: 201 });
+  } catch {
+    return NextResponse.json({ user: toPublicUser(result.user), setup: 'failed',
+      setupError: 'Your login was created, but financial setup did not finish. Retry from /api/auth/setup.' }, { status: 201 });
+  }
 }

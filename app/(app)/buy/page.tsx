@@ -7,7 +7,7 @@ import { fundingOptions } from '@/lib/fundingOptions';
 import { parseMoney } from '@/lib/engine/money';
 import { IndicatorList } from '@/components/IndicatorList';
 import { money0, shortDate } from '@/lib/format';
-import { DEMO_ASOF, getPerson } from '@/lib/people';
+import { DEMO_ASOF } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { Card, Eyebrow, Pill, btn, input } from '@/components/ui';
@@ -40,8 +40,7 @@ function headline(r: AffordResult): string {
 }
 
 export default function BuyPage() {
-  const { viewerId } = useViewer();
-  const person = getPerson(viewerId);
+  const { person } = useViewer();
   const loaded = usePicture(person.id);
   const [q, setQ] = useState<Question>(EXAMPLES[0]);
   const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
