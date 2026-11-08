@@ -12,6 +12,8 @@ import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { Card, Pill, btn, input } from '@/components/ui';
 import { PageShell } from '@/components/wallet/PageShell';
+import { BuyOptions, useBuyOptions } from '@/components/BuyOptions';
+import type { BuyQuestion } from '@/lib/agent/buyOptions';
 
 interface Question {
   label: string;
@@ -45,6 +47,9 @@ export default function BuyPage() {
   const loaded = usePicture(person.id);
   const [q, setQ] = useState<Question>(EXAMPLES[0]);
   const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
+  const [askedQuestion, setAskedQuestion] = useState<BuyQuestion | null>(null);
+  const buyOptions = useBuyOptions();
+  const showOptions = asked?.memberId === person.id && askedQuestion && buyOptions.state?.key.startsWith(`${person.id}|`) ? buyOptions.state : null;
 
   const picture = loaded.status === 'ready' ? loaded.picture : null;
   const options = picture ? fundingOptions(picture) : [];
@@ -73,6 +78,13 @@ export default function BuyPage() {
     const normalized = { ...next, from: funding?.value ?? '' };
     setQ(normalized);
     setAsked({ memberId: person.id, q: normalized });
+    const cost = parseMoney(normalized.cost) ?? 0;
+    const label = normalized.label.trim();
+    if (funding && cost > 0 && label.length >= 2 && normalized.date) {
+      const question = { label, cost, date: normalized.date, sourceAccountId: funding.sourceAccountId, goalId: funding.goalId };
+      setAskedQuestion(question);
+      void buyOptions.start(`${person.id}|${JSON.stringify(question)}`, question);
+    } else setAskedQuestion(null);
   };
 
   return (
@@ -134,6 +146,7 @@ export default function BuyPage() {
             </button>
           </form>
 
+          <div className="flex min-w-0 flex-col gap-6">
           <Card label="Answer" className="flex min-h-[360px] min-w-0 flex-col gap-[18px]">
             {!result ? (
               <p className="m-0 text-ink-2" aria-live="polite">
@@ -171,6 +184,8 @@ export default function BuyPage() {
               </div>
             )}
           </Card>
+          {showOptions && askedQuestion && <BuyOptions state={showOptions} picture={picture} question={askedQuestion} />}
+          </div>
         </div>
       )}
     </PageShell>

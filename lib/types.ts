@@ -168,6 +168,7 @@ export interface AffordResult {
   flags: string[];
   missingInputs: string[];
   sourceAccountId: string;
+  liquid: boolean; // the chosen account stays non-negative on the asked date
   before: HealthResult;
   after: HealthResult;
   verifiedAlternative?: { date: string; sourceAccountId: string; result: HealthResult };

@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import type { HuddleClientView, ProposalView } from '@/lib/huddles';
+import type { AgentStep } from '@/lib/types';
 import { money0 } from '@/lib/format';
 import { Eyebrow, Pill, btn, btn2, input } from './ui';
 
@@ -12,7 +13,21 @@ type Run = (body: Record<string, unknown>) => Promise<void>;
 const STEP_ICON = { plan: '🧭', tool: '🔧', result: '↺', final: '✓' } as const;
 const checkedAt = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-function ProposalCard({ p, children }: { p: ProposalView; children?: React.ReactNode }) {
+export function SearchSteps({ steps, running }: { steps: AgentStep[]; running: boolean }) {
+  return (
+    <ol aria-label="What Nemotron did" aria-live="polite" className="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-soft p-3 text-[14px]">
+      {steps.map((s, i) => (
+        <li key={i} className="flex items-start gap-2">
+          <span aria-hidden="true" className="w-5 shrink-0 text-center">{STEP_ICON[s.type]}</span>
+          <span className="min-w-0">{s.text}</span>
+        </li>
+      ))}
+      {running && <li className="pl-7 text-muted">Working…</li>}
+    </ol>
+  );
+}
+
+export function ProposalCard({ p, children }: { p: ProposalView; children?: React.ReactNode }) {
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-line p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -117,17 +132,7 @@ export function PurchasePanel({ h, isCreator, run, busy }: { h: HuddleClientView
 
       {review && <ReviewBox key={review.proposal.id} review={review} run={run} busy={busy} />}
 
-      {search && search.steps.length > 0 && (
-        <ol aria-label="What Nemotron did" aria-live="polite" className="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-soft p-3 text-[14px]">
-          {search.steps.map((s, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span aria-hidden="true" className="w-5 shrink-0 text-center">{STEP_ICON[s.type]}</span>
-              <span className="min-w-0">{s.text}</span>
-            </li>
-          ))}
-          {running && <li className="pl-7 text-muted">Working…</li>}
-        </ol>
-      )}
+      {search && search.steps.length > 0 && <SearchSteps steps={search.steps} running={running} />}
       {running && !search.steps.length && <p className="m-0 text-sm text-ink-2" aria-live="polite">Nemotron is starting…</p>}
       {search?.usedDemo && <p className="m-0 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">The live search wasn’t available, so these results are demo data. They are not real prices or listings.</p>}
       {search?.noSolution && <p className="m-0 rounded-xl bg-bad-bg px-4 py-3 text-sm text-[#7A1712]">{search.noSolution}</p>}

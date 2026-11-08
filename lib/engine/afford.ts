@@ -10,6 +10,14 @@ export interface AffordQuestion { label: string; cost: number; date?: string; so
 export function purchaseOk(_before: HealthResult, after: HealthResult): boolean {
   return after.overall === 'green' && after.missingInputs.length === 0;
 }
+/**
+ * Is this offer worth showing? A yes counts. So does paying for it without dropping a status, or a
+ * yellow-status shopper would never be shown anything. Red is never acceptable.
+ */
+export function fitsBudget(r: AffordResult): boolean {
+  if (r.verdict !== 'no') return true;
+  return r.missingInputs.length === 0 && r.liquid && r.after.overall !== 'red' && r.after.overall === r.before.overall;
+}
 export function canAfford(p: FinancialPicture, q: AffordQuestion, asOf: string): AffordResult {
   const date = q.date ?? asOf;
   const source = checkSource(p, q.cost, q.sourceAccountId, q.goalId);
@@ -30,7 +38,7 @@ export function canAfford(p: FinancialPicture, q: AffordQuestion, asOf: string):
   };
   const { after, liquid, low } = interval >= 0 && interval <= 335 && source.valid ? evaluate(date) : { after: before, liquid: false, low: undefined };
   const missingInputs = [...new Set([...missing, ...before.missingInputs, ...after.missingInputs])];
-  const base = { scoreBefore: before.score, scoreAfter: after.score, flags: after.flags, missingInputs, sourceAccountId: q.sourceAccountId, before, after };
+  const base = { scoreBefore: before.score, scoreAfter: after.score, flags: after.flags, missingInputs, sourceAccountId: q.sourceAccountId, liquid, before, after };
   if (missingInputs.length) return { ...base, verdict: 'no', reason: missingInputs.join(' ') };
   if (liquid && purchaseOk(before, after)) return { ...base, verdict: 'yes', reason: 'The selected account covers this purchase, scheduled expenses and existing commitments, and the resulting assessment is green.' };
   const problem = !liquid ? `The selected account cannot cover this purchase and its commitments${low ? ` (lowest balance on ${shortDate(low.date)})` : ''}.` : 'The resulting assessment is not green.';
