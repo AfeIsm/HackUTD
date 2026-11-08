@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { type Huddle, newParticipant, viewFor } from '../../huddles';
-import { groupSafe, safeQuery } from '../../agent/purchase';
-import { parseBrief } from '../brief';
+import { groupSafe } from '../../agent/purchase';
+import { briefFromGuess, cleanGuess } from '../../agent/plan';
 import { evaluateOffer, parseDelivery } from '../evaluate';
 import { demoOffers } from '../fixtures';
 import { acceptProposal, maybeAutoSearch, rejectProposal, startReview, startSearch } from '../review';
-import { normalizeRentals, normalizeShopping, productParams, rentalParams } from '../serpapi';
+import { normalizeRentals, normalizeShopping, productParams, rentalParams, safeQuery } from '../serpapi';
+import { judgeBudget, priceRange } from '../viability';
 import type { Offer, Proposal, PurchaseBrief } from '../types';
 
 const ASOF = '2026-11-07';
@@ -50,6 +51,11 @@ describe('offers are checked by code, not the AI', () => {
     expect(reasonOf(judge(product({ deliverBy: '2026-11-20' }), offer({ deliveryText: 'Delivery by Dec 1' })))).toBe('lateDelivery');
     expect(reasonOf(judge(product(), offer({ unitPrice: 60000 })))).toBe('overBudget');
     expect(reasonOf(judge(product(), offer(), new Set(['k'])))).toBe('alreadyRejected');
+  });
+  it('rejects accessories and prices far below similar listings', () => {
+    expect(reasonOf(judge(product(), offer({ title: 'For Sony WH-1000XM5 Replacement Ear Pads' })))).toBe('accessory');
+    expect(reasonOf(judge(product({ description: 'Phone case' }), offer({ title: 'Leather phone case' })))).toBe('ok');
+    expect(reasonOf(evaluateOffer(product(), offer({ unitPrice: 4500 }), { budget: BUDGET, asOf: ASOF, rejectedKeys: new Set(), priceFloor: 9000 }))).toBe('suspiciouslyCheap');
   });
   it('does not reject when the delivery date is unknown, but says so', () => {
     const r = judge(product({ deliverBy: '2026-11-20' }), offer({ deliveryText: 'Free delivery' }));
@@ -105,26 +111,49 @@ describe('talking to SerpApi', () => {
   });
 });
 
-describe('the brief', () => {
-  it('exact choice needs a model and can never allow substitutions', () => {
-    expect(parseBrief({ category: 'product', description: 'Gift', mode: 'exact' }, ASOF)).toHaveProperty('error');
-    const r = parseBrief({ category: 'product', description: 'Gift', mode: 'exact', exactModel: 'X1', flexibility: { alternativeBrands: true } }, ASOF);
-    expect('brief' in r && r.brief?.flexibility.alternativeBrands).toBe(false);
+describe('working out the plan from its name', () => {
+  it('needs something to search, or it is "other"', () => {
+    expect(cleanGuess({ kind: 'trip', destination: '' }).kind).toBe('other');
+    expect(cleanGuess({ kind: 'nonsense', destination: 'Mexico' }).kind).toBe('other');
+    expect(cleanGuess({ kind: 'trip', destination: 'Cancun, Mexico', nights: 99 })).toMatchObject({ kind: 'trip', destination: 'Cancun Mexico', nights: 3 });
   });
-  it('nothing is flexible unless asked, and rentals need stay details', () => {
-    const r = parseBrief({ category: 'product', description: 'Gift' }, ASOF);
-    expect('brief' in r && r.brief?.flexibility).toEqual({ alternativeBrands: false, refurbished: false, differentDates: false, nearbyLocations: false });
-    expect(parseBrief({ category: 'rental', description: 'Beach', location: 'X' }, ASOF)).toHaveProperty('error');
+  it('a trip gets labeled example dates, for everyone coming', () => {
+    const b = briefFromGuess({ kind: 'trip', searchTerms: '', destination: 'Mexico', nights: 4 }, 'Mexico trip', 3, '2026-12-20', ASOF)!;
+    expect(b).toMatchObject({ category: 'trip', location: 'Mexico', checkIn: '2026-12-20', checkOut: '2026-12-24', guests: 3, assumedDates: true });
+    expect(briefFromGuess({ kind: 'trip', searchTerms: '', destination: 'Mexico', nights: 2 }, 'x', 2, '', ASOF)?.checkIn).toBe('2026-12-07');
   });
-  it('no brief is an ordinary huddle; a non-web link is refused', () => {
-    expect(parseBrief(undefined, ASOF)).toEqual({ brief: null });
-    expect(parseBrief({ category: 'product', description: 'Gift', url: 'javascript:alert(1)' }, ASOF)).toHaveProperty('error');
+  it('nothing beyond a cheaper alternative is assumed', () => {
+    const b = briefFromGuess({ kind: 'product', searchTerms: 'headphones', destination: '', nights: 3 }, 'Gift', 2, '2026-12-20', ASOF)!;
+    expect(b.flexibility).toEqual({ alternativeBrands: true, refurbished: false, differentDates: false, nearbyLocations: false });
+    expect(b.condition).toBe('new');
+  });
+  it('rent or dinner has nothing to shop for', () => {
+    expect(briefFromGuess({ kind: 'other', searchTerms: '', destination: '', nights: 3 }, 'Rent', 2, '2026-12-20', ASOF)).toBeNull();
+  });
+});
+
+describe('is the budget realistic?', () => {
+  it('has no opinion without enough real prices', () => {
+    expect(priceRange([10000, 20000])).toBeNull();
+  });
+  it('ignores the junk at the extremes', () => {
+    const r = priceRange([100, ...Array.from({ length: 18 }, (_, i) => 20000 + i * 1000), 9000000])!;
+    expect(r.low).toBe(21000);
+    expect(r.typical).toBe(29000);
+    expect(r.high).toBeLessThan(9000000);
+  });
+  it('a $50 trip is too low', () => {
+    const r = { low: 30000, typical: 60000, high: 150000 };
+    expect(judgeBudget(5000, r)).toBe('tooLow');
+    expect(judgeBudget(40000, r)).toBe('tight');
+    expect(judgeBudget(90000, r)).toBe('ok');
+    expect(judgeBudget(900000, r)).toBe('high');
   });
 });
 
 const proposal = (over: Partial<Proposal> = {}): Proposal => ({
   id: 'p1', offerKey: 'offer-1', kind: 'product', title: 'Sony', seller: 'Shop', link: null, linkIsSearch: false, retrievedAt: 'now', demo: false, deliveryText: null, why: '',
-  lines: [], total: 40000, basis: 'advertised', unknownCosts: [], tradeoffs: [], underBudgetBy: 10000, belowListPriceBy: null, ...over,
+  lines: [], total: 40000, planTotal: 40000, basis: 'advertised', unknownCosts: [], tradeoffs: [], underBudgetBy: 10000, belowListPriceBy: null, ...over,
 });
 const huddle = (over: Partial<Huddle> = {}): Huddle => ({
   id: 'h', name: 'Gift', totalCost: BUDGET, targetDate: '2026-12-01', createdBy: 'a', phase: 'revealed', round: 1, message: null, lastDecline: null, fairSplit: null, brief: product(),
@@ -183,11 +212,21 @@ describe('when Nemotron searches on its own', () => {
     const done = { ...first, search: { ...first.search!, status: 'done' as const } };
     expect(maybeAutoSearch(done, 'r2', Date.now()).search?.runId).toBe('r1');
   });
-  it('does not search when funded, without a brief, or after a plan was accepted', () => {
+  it('needs no form: any huddle that comes up short gets a search', () => {
+    expect(maybeAutoSearch(huddle({ brief: null }), 'r', Date.now()).search?.trigger).toBe('underfunded');
+  });
+  it('does not search when funded, or after a plan was accepted', () => {
     const funded = huddle({ totalCost: 30000 });
     expect(maybeAutoSearch(funded, 'r', Date.now()).search).toBeUndefined();
-    expect(maybeAutoSearch(huddle({ brief: null }), 'r', Date.now()).search).toBeUndefined();
     expect(maybeAutoSearch(huddle({ selected: proposal() }), 'r', Date.now()).search).toBeUndefined();
+  });
+  it('accepting a cheaper stay keeps room for flights in the plan', () => {
+    const h = withProposals();
+    const trip = { ...h, search: { ...h.search!, proposals: [proposal({ kind: 'rental', total: 12000, planTotal: 35000 })] } };
+    const done = acceptProposal(acceptProposal(startReview(trip, 'p1') as Huddle, 'a'), 'b');
+    expect(done.totalCost).toBe(35000);
+    expect(done.phase).toBe('agreeing');
+    expect(done.participants.map((p) => p.pledge)).toEqual([20000, 15000]);
   });
   it('hides the funding gap until commitments are revealed', () => {
     const hidden = viewFor(withProposals(huddle({ phase: 'pledging' })), 'a');

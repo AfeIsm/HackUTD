@@ -21,10 +21,15 @@ const cents = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v 
 const webLink = (v: unknown) => (typeof v === 'string' && /^https?:\/\//.test(v) ? v : null);
 const stringList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 30) : []);
 
-export function productParams(q: string, sort: 'best' | 'price_low', maxPriceCents: number): Record<string, string> {
+// Search words only, never a dollar target or anything that reads like someone's money.
+export const safeQuery = (s: unknown) => String(s ?? '')
+  .replace(/\$\s*\d[\d,.]*/g, ' ').replace(/\b(under|below|less than|max|budget)\b\s*\d*/gi, ' ')
+  .replace(/[^\p{L}\p{N}\s'&+.-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+
+export function productParams(q: string, sort: 'best' | 'price_low', maxPriceCents?: number): Record<string, string> {
   return {
     engine: 'google_shopping', q, gl: 'us', hl: 'en',
-    max_price: String(Math.ceil(maxPriceCents / 100)),
+    ...(maxPriceCents ? { max_price: String(Math.ceil(maxPriceCents / 100)) } : {}),
     ...(sort === 'price_low' ? { sort_by: '1' } : {}),
   };
 }

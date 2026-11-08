@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
     totalCost: typeof b.totalCost === 'number' ? b.totalCost : NaN,
     targetDate: typeof b.targetDate === 'string' ? b.targetDate : '',
     members,
-    brief: b.brief,
   });
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ id: result.id, huddles: await listHuddles(viewer.memberId) }, { status: 201 });

@@ -28,6 +28,7 @@ export interface PurchaseBrief {
   guests: number | null;
   bedrooms: number | null;
   amenities: string[];
+  assumedDates?: boolean; // nobody gave stay dates, so these are example dates
 }
 
 // One search result, normalized. Every field comes from the source; missing means unknown.
@@ -77,6 +78,7 @@ export interface Proposal extends Priced {
   demo: boolean;
   deliveryText: string | null;
   why: string; // Nemotron's words, filtered before the group sees them
+  planTotal: number; // what the huddle's total becomes if accepted (a trip keeps room for flights)
 }
 
 export type SearchTrigger = 'requested' | 'underfunded' | 'rejected';

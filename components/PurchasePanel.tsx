@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import type { HuddleClientView, ProposalView } from '@/lib/huddles';
-import { money0, shortDate } from '@/lib/format';
+import { money0 } from '@/lib/format';
 import { Eyebrow, Pill, btn, btn2, input } from './ui';
 
 type Run = (body: Record<string, unknown>) => Promise<void>;
@@ -39,7 +39,9 @@ function ProposalCard({ p, children }: { p: ProposalView; children?: React.React
       {p.unknownCosts.length > 0 && <p className="m-0 text-sm text-warn"><b>Not included, unknown:</b> {p.unknownCosts.join(', ')}</p>}
       {p.tradeoffs.length > 0 && <ul className="m-0 flex list-disc flex-col gap-0.5 pl-5 text-sm text-ink-2">{p.tradeoffs.map((t) => <li key={t}>{t}</li>)}</ul>}
       <div className="flex flex-col gap-0.5 text-sm">
-        {p.underBudgetBy > 0 && <span>{money0(p.underBudgetBy)} under the target budget{p.belowListPriceBy ? ` · ${money0(p.belowListPriceBy)} below list price` : ''}</span>}
+        {p.underBudgetBy > 0 && (p.kind === 'rental'
+          ? <span className="font-semibold">Leaves {money0(p.underBudgetBy)} for flights, food and activities</span>
+          : <span>{money0(p.underBudgetBy)} under budget{p.belowListPriceBy ? ` · ${money0(p.belowListPriceBy)} below list price` : ''}</span>)}
         {p.fundingGap !== null && <span className={p.fundingGap > 0 ? 'font-semibold text-bad' : 'font-semibold text-good'}>{p.fundingGap > 0 ? `${money0(p.fundingGap)} funding gap at current commitments` : 'Fully covered by current commitments'}</span>}
         {p.deliveryText && <span className="text-ink-2">Listed delivery: {p.deliveryText} (not guaranteed)</span>}
       </div>
@@ -88,27 +90,19 @@ function ReviewBox({ review, run, busy }: { review: NonNullable<NonNullable<Hudd
 export function PurchasePanel({ h, isCreator, run, busy }: { h: HuddleClientView; isCreator: boolean; run: Run; busy: boolean }) {
   const purchase = h.purchase;
   if (!purchase) return null;
-  const { brief, search, review, selected, searchesLeft } = purchase;
+  const { search, review, selected, searchesLeft } = purchase;
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const running = search?.status === 'running';
-  const allowed = [brief.flexibility.alternativeBrands && 'other brands', brief.flexibility.refurbished && 'refurbished', brief.flexibility.differentDates && 'different dates', brief.flexibility.nearbyLocations && 'nearby locations'].filter(Boolean);
-  const details = brief.category === 'product'
-    ? [brief.exactModel, brief.quantity > 1 && `${brief.quantity} items`, brief.condition === 'new' ? 'New' : 'Any condition', brief.deliverBy && `Arrives by ${shortDate(brief.deliverBy)}`]
-    : [brief.exactModel, brief.location, brief.checkIn && brief.checkOut && `${shortDate(brief.checkIn)} to ${shortDate(brief.checkOut)}`, brief.guests && `${brief.guests} guests`, brief.bedrooms && `${brief.bedrooms}+ bedrooms`, brief.amenities.join(', ')];
   return (
-    <section aria-label="The purchase" className="box-border flex flex-col gap-4 rounded-[14px] border border-line bg-surface p-6">
+    <section aria-label="Cheaper alternatives" className="box-border flex flex-col gap-4 rounded-[14px] border border-line bg-surface p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <Eyebrow>The purchase · Nemotron search</Eyebrow>
-          <h2 className="m-0 text-[22px]">{brief.description}</h2>
-          <p className="m-0 text-sm text-ink-2">
-            {details.filter(Boolean).join(' · ')}
-            {' · '}{brief.mode === 'exact' ? 'Exact choice' : allowed.length ? `Flexible: ${allowed.join(', ')}` : 'Flexible, nothing allowed to change yet'}
-            {brief.url && <> · <a href={brief.url} target="_blank" rel="noopener noreferrer">link</a></>}
-          </p>
+          <Eyebrow>Cheaper alternatives · Nemotron</Eyebrow>
+          <h2 className="m-0 text-[22px]">{selected ? 'The group chose a new plan' : 'The pledges didn’t reach the goal'}</h2>
+          {!selected && <p className="m-0 text-sm text-ink-2">Nemotron searched for a way to do this with what the group pledged.</p>}
         </div>
-        {isCreator && open && !review && !running && searchesLeft > 0 && (
-          <button type="button" className={btn2} disabled={busy} onClick={() => void run({ action: 'findOptions' })}>{search ? 'Find other options' : 'Find options'}</button>
+        {isCreator && open && !review && !running && search && searchesLeft > 0 && (
+          <button type="button" className={btn2} disabled={busy} onClick={() => void run({ action: 'findOptions' })}>Find other options</button>
         )}
       </div>
 

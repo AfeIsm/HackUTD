@@ -192,7 +192,7 @@ export interface HuddleClientView {
 
 export type ProposalView = Proposal & { fundingGap: number | null }; // null until commitments are revealed
 export interface PurchaseView {
-  brief: PurchaseBrief;
+  brief: PurchaseBrief | null; // worked out by Nemotron the first time it searches
   search: (Omit<PurchaseSearch, 'proposals' | 'fundingKey'> & { proposals: ProposalView[] }) | null;
   review: { proposal: ProposalView; acceptedCount: number; neededCount: number; iAccepted: boolean; iMustRespond: boolean } | null;
   selected: ProposalView | null;
@@ -202,12 +202,12 @@ export interface PurchaseView {
 export const MAX_SEARCH_RUNS = 6; // each run can spend real SerpApi searches
 
 function purchaseView(h: Huddle, viewerMemberId: string, revealed: boolean, total: number): PurchaseView | null {
-  if (!h.brief) return null;
+  if (!h.brief && !h.search && !h.review && !h.selected) return null; // nothing to show yet
   const withGap = (p: Proposal): ProposalView => ({ ...p, fundingGap: revealed ? Math.max(0, p.total - total) : null });
   const needed = h.participants.filter((p) => p.joined && p.userId);
   const s = h.search;
   return {
-    brief: h.brief,
+    brief: h.brief ?? null,
     // Field by field on purpose: fundingKey holds the committed total, hidden while pledging.
     search: s ? { runId: s.runId, status: s.status, trigger: s.trigger, startedAt: s.startedAt, steps: s.steps, noSolution: s.noSolution, summary: s.summary, usedDemo: s.usedDemo, proposals: s.proposals.map(withGap) } : null,
     review: h.review && h.phase !== 'cancelled' ? {

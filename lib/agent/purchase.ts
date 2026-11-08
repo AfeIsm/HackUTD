@@ -13,11 +13,12 @@ import { DEMO_ASOF } from '../people';
 import { payers, totalPledged, type Huddle } from '../huddles';
 import { evaluateOffer, REJECT_TEXT, type RejectReason } from '../purchase/evaluate';
 import { demoOffers } from '../purchase/fixtures';
-import { normalizeRentals, normalizeShopping, productParams, rentalParams, runSearch, type SearchResult } from '../purchase/serpapi';
+import { normalizeRentals, normalizeShopping, productParams, rentalParams, runSearch, safeQuery, type SearchResult } from '../purchase/serpapi';
 import type { Offer, Priced, Proposal, PurchaseBrief, PurchaseSearch } from '../purchase/types';
-import { appendSearchStep, finishSearch, getHuddle } from '../services/huddle';
+import { appendSearchStep, finishSearch, getHuddle, saveBrief } from '../services/huddle';
 import { buildPicture } from '../services/picture';
 import { NEMOTRON_MODEL, agentConfigured, nemotron } from './client';
+import { briefFromGuess, interpretPlan } from './plan';
 
 const MAX_REQUESTS = 5;
 const MAX_REFINEMENTS = 3;
@@ -26,6 +27,7 @@ const MAX_TURNS = 12;
 const TIME_LIMIT_MS = 48_000;
 
 const SYSTEM = (b: PurchaseBrief) => `You find a shared purchase for a group, using only your tools. Today is ${DEMO_ASOF}.
+Usually the group pledged less than the original plan costs, so you are finding a cheaper way to do the same thing.
 How you work: call get_requirements first. Then search, read which offers survived and why others were rejected, and test the most promising ones with test_affordability. Decide your next step from those results: if nothing works, change the search within what the group allowed and try again. Finish with save_proposals, or with explain_no_solution if nothing can work.
 Rules:
 - This is ${b.mode === 'exact' ? 'an EXACT choice: never suggest a different model or property' : 'a FLEXIBLE choice: alternatives are fine only within the flexibility listed in get_requirements'}.
@@ -50,11 +52,6 @@ const PRIVATE_WORDS = /afford|income|salary|paycheck|broke|debt|savings|balance|
 export const groupSafe = (s: unknown, max = 220) => String(s ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').split(/(?<=[.!?])\s+/)
   .filter((x) => x && !/\d/.test(x) && !PRIVATE_WORDS.test(x)).join(' ').trim().slice(0, max);
 
-// What may leave the building: search words only, never a dollar target derived from anyone's money.
-export const safeQuery = (s: unknown) => String(s ?? '')
-  .replace(/\$\s*\d[\d,.]*/g, ' ').replace(/\b(under|below|less than|max|budget)\b\s*\d*/gi, ' ')
-  .replace(/[^\p{L}\p{N}\s'&+.-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
-
 interface Known { id: string; offer: Offer; priced: Priced; fits?: boolean }
 
 async function groupSafeLimit(h: Huddle): Promise<number> {
@@ -67,10 +64,11 @@ async function groupSafeLimit(h: Huddle): Promise<number> {
   return sum;
 }
 
-function toProposal(k: Known, runId: string, i: number, why: unknown): Proposal {
+function toProposal(k: Known, runId: string, i: number, why: unknown, tripBudget: number | null): Proposal {
   const { offer, priced } = k;
   return {
-    ...priced, id: `${runId}-${i}`, offerKey: offer.key, kind: offer.kind, title: offer.title, seller: offer.seller, link: offer.link,
+    // A stay is only part of a trip: the plan keeps the whole budget, so flights don't vanish.
+    ...priced, planTotal: tripBudget ?? priced.total, id: `${runId}-${i}`, offerKey: offer.key, kind: offer.kind, title: offer.title, seller: offer.seller, link: offer.link,
     linkIsSearch: Boolean(offer.linkIsSearch), retrievedAt: offer.retrievedAt, demo: offer.demo, deliveryText: offer.deliveryText ?? null, why: groupSafe(why),
   };
 }
@@ -81,9 +79,17 @@ export async function runPurchaseAgent(huddleId: string, runId: string): Promise
   const finish = (patch: Partial<PurchaseSearch>) => finishSearch(huddleId, runId, patch).catch((err: Error) => console.warn('Could not save search result:', err.message));
   try {
     const h = await getHuddle(huddleId);
-    if (!h?.brief) return;
+    if (!h) return;
     if (!agentConfigured()) { await finish({ status: 'failed', noSolution: 'Nemotron isn’t set up on this server yet.' }); return; }
-    await run(h, h.brief, runId, step, finish);
+    let brief = h.brief ?? null;
+    if (!brief) {
+      await step('plan', 'Nemotron is working out what the group is planning.');
+      const guess = await interpretPlan(h.name);
+      brief = guess && briefFromGuess(guess, h.name, h.participants.length, h.targetDate, DEMO_ASOF);
+      if (!brief) { await finish({ status: 'done', noSolution: `Nemotron couldn’t tell what to shop for from “${h.name}”, so it didn’t search for a cheaper version.` }); return; }
+      await saveBrief(h.id, runId, brief);
+    }
+    await run(h, brief, runId, step, finish);
   } catch (err) {
     console.warn(`Purchase search failed for ${huddleId}:`, (err as Error).message);
     await finish({ status: 'failed', noSolution: 'The search hit a problem. Try again.' });
@@ -92,9 +98,10 @@ export async function runPurchaseAgent(huddleId: string, runId: string): Promise
 
 async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: AgentStep['type'], x: string, tool?: string) => Promise<unknown>, finish: (p: Partial<PurchaseSearch>) => Promise<unknown>) {
   const started = Date.now();
-  const budget = h.totalCost;
   const revealed = h.phase !== 'pledging';
   const committed = totalPledged(h);
+  // Short of the plan? A real alternative has to fit what the group actually pledged.
+  const budget = revealed && committed > 0 && committed < h.totalCost ? committed : h.totalCost;
   const rejectedKeys = new Set(h.rejectedOfferKeys ?? []);
   const known = new Map<string, Known>(); // offerId → offer
   const rejectedTotals = new Map<RejectReason, number>();
@@ -124,8 +131,11 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
     }
     const eligible: Known[] = [];
     const rejected = new Map<RejectReason, number>();
+    // A price far under the other results for the same search is usually a part or a scam.
+    const prices = res.offers.flatMap((o) => (o.unitPrice ? [o.unitPrice] : [])).sort((a, b) => a - b);
+    const priceFloor = prices.length >= 5 ? Math.round(prices[Math.floor(prices.length / 2)] * 0.4) : undefined;
     for (const offer of res.offers) {
-      const judged = evaluateOffer(brief, offer, { budget, asOf: DEMO_ASOF, rejectedKeys });
+      const judged = evaluateOffer(brief, offer, { budget, asOf: DEMO_ASOF, rejectedKeys, priceFloor });
       if (!judged.ok) { rejected.set(judged.reason, (rejected.get(judged.reason) ?? 0) + 1); rejectedTotals.set(judged.reason, (rejectedTotals.get(judged.reason) ?? 0) + 1); continue; }
       const existing = [...known.values()].find((k) => k.offer.key === offer.key);
       const entry = existing ?? { id: `o${known.size + 1}`, offer, priced: judged.priced };
@@ -152,7 +162,7 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
   }
 
   function saveWith(picks: { k: Known; why: unknown }[], summary: unknown) {
-    const proposals = picks.slice(0, MAX_PROPOSALS).map((p, i) => toProposal(p.k, runId, i + 1, p.why));
+    const proposals = picks.slice(0, MAX_PROPOSALS).map((p, i) => toProposal(p.k, runId, i + 1, p.why, brief.category === 'trip' ? budget : null));
     return step('final', `Created ${proposals.length} ${proposals.length === 1 ? 'proposal' : 'proposals'} for the group to review.`, 'proposals')
       .then(() => finish({ status: 'done', proposals, summary: groupSafe(summary, 300) || null, usedDemo, noSolution: null }));
   }
@@ -211,7 +221,7 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
       if (name === 'get_requirements') {
         result = {
           category: brief.category, description: brief.description, choice: brief.mode, exactItem: brief.exactModel, condition: brief.condition, quantity: brief.quantity,
-          targetBudget: money0(budget), purchaseDeadline: h.targetDate, deliverBy: brief.deliverBy, location: brief.location, checkIn: brief.checkIn, checkOut: brief.checkOut,
+          originalPlanCost: money0(h.totalCost), targetBudget: money0(budget), purchaseDeadline: h.targetDate, deliverBy: brief.deliverBy, location: brief.location, checkIn: brief.checkIn, checkOut: brief.checkOut,
           guests: brief.guests, bedrooms: brief.bedrooms, amenities: brief.amenities, allowedToChange: brief.flexibility,
           committedSoFar: revealed ? money0(committed) : 'hidden until everyone commits', fundingGap: revealed ? money0(Math.max(0, budget - committed)) : 'hidden until everyone commits',
           groupFeedback: (h.proposalFeedback ?? []).map((f) => ({ turnedDown: f.proposal, because: f.reason })), searchesLeft: searchesLeft(),

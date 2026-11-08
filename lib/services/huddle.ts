@@ -20,9 +20,8 @@ import {
 } from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
 import type { AgentStep, DeclineReason, FinancialPicture } from '@/lib/types';
-import { parseBrief } from '../purchase/brief';
 import { acceptProposal, maybeAutoSearch, rejectProposal, searchBlocked, settleReview, startReview, startSearch } from '../purchase/review';
-import type { PurchaseSearch } from '../purchase/types';
+import type { PurchaseBrief, PurchaseSearch } from '../purchase/types';
 
 interface HuddleDoc extends Omit<Huddle, 'id'> {
   _id: string;
@@ -64,7 +63,6 @@ export interface CreateInput {
   totalCost: number;
   targetDate: string;
   members: { memberId: string; isPaying: boolean }[];
-  brief?: unknown; // what they're buying, validated here
 }
 
 /** Only you, your household and accepted friends can be added. Friends get an invite. */
@@ -73,8 +71,6 @@ export async function createHuddle(viewer: Viewer, input: CreateInput): Promise<
   if (!name || name.length > 60) return { status: 400, error: 'Give the huddle a name (up to 60 characters).' };
   if (!validCents(input.totalCost) || input.totalCost <= 0 || input.totalCost > 100_000_000) return { status: 400, error: 'Enter a total cost.' };
   if (!validDate(input.targetDate) || input.targetDate < DEMO_ASOF) return { status: 400, error: 'Pick a pay-by date in the future.' };
-  const parsed = parseBrief(input.brief, DEMO_ASOF);
-  if ('error' in parsed) return { status: 400, error: parsed.error };
 
   const conn = await connectionsFor(new ObjectId(viewer.user.id));
   const allowed = new Map<string, { userId: string | null; name: string; joined: boolean }>();
@@ -99,7 +95,7 @@ export async function createHuddle(viewer: Viewer, input: CreateInput): Promise<
   const now = new Date();
   await (await huddles()).insertOne({
     _id: id, name, totalCost: input.totalCost, targetDate: input.targetDate, createdBy: viewer.memberId,
-    phase: 'pledging', round: 1, message: null, lastDecline: null, fairSplit: null, participants, brief: parsed.brief,
+    phase: 'pledging', round: 1, message: null, lastDecline: null, fairSplit: null, participants,
     version: 1, createdAt: now, updatedAt: now,
   });
   return { id };
@@ -280,6 +276,10 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
 // Each write checks the run is still the current one, so an old run can't overwrite a newer one.
 // Bumping `version` makes any action racing with it re-read instead of overwriting the search.
 const currentRun = (huddleId: string, runId: string) => ({ _id: huddleId, 'search.runId': runId, 'search.status': 'running' as const });
+
+export async function saveBrief(huddleId: string, runId: string, brief: PurchaseBrief): Promise<void> {
+  await (await huddles()).updateOne(currentRun(huddleId, runId), { $set: { brief, updatedAt: new Date() }, $inc: { version: 1 } } as never);
+}
 
 export async function appendSearchStep(huddleId: string, runId: string, step: AgentStep): Promise<void> {
   await (await huddles()).updateOne(currentRun(huddleId, runId), { $push: { 'search.steps': step }, $inc: { version: 1 }, $set: { updatedAt: new Date() } } as never);

@@ -2,8 +2,10 @@
 // Unknown stays unknown: we never fill in a missing fee, date or feature.
 import { addDays } from '../engine/dates';
 import { toCents } from '../engine/money';
+import { shortDate } from '../format';
 import type { Offer, Priced, PriceLine, PurchaseBrief } from './types';
 
+const MAJOR_RETAILERS = /\b(amazon|walmart|target|best buy|costco|apple|samsung|sony|nintendo|gamestop|newegg|b&h|sweetwater|ebay|kohl'?s|macy'?s|nordstrom|home depot|lowe'?s|rei)\b/i;
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 /** Read a shopping `delivery` string. Null means the text didn't say. */
@@ -60,6 +62,7 @@ export function priceOffer(brief: PurchaseBrief, offer: Offer, budget: number, a
     if (brief.quantity > 1 && shipping !== null) tradeoffs.push('Shipping is counted once, and may be charged per item.');
     if (offer.oldPrice && offer.oldPrice > unit) belowListPriceBy = (offer.oldPrice - unit) * brief.quantity;
     if (offer.condition) tradeoffs.push(`Condition: ${offer.condition}`);
+    if (!offer.demo && !MAJOR_RETAILERS.test(offer.seller)) tradeoffs.push(`${offer.seller} isn’t a major retailer. Check them out before buying.`);
     if (brief.deliverBy && !date) tradeoffs.push('The listing doesn’t give a delivery date.');
   } else {
     const stay = offer.stayTotal ?? 0;
@@ -74,6 +77,7 @@ export function priceOffer(brief: PurchaseBrief, offer: Offer, budget: number, a
     total = stay;
     basis = 'estimated';
     if (brief.category === 'trip') unknownCosts.push('Flights (not searched)', 'Food and activities');
+    if (brief.assumedDates && brief.checkIn && brief.checkOut) tradeoffs.push(`Priced for ${shortDate(brief.checkIn)} to ${shortDate(brief.checkOut)} as an example. Your dates may cost more or less.`);
     if (brief.guests && firstNumber(offer.essentialInfo, /sleeps\s+(\d+)/i) === null) tradeoffs.push('The listing doesn’t say how many guests it sleeps.');
     if (brief.bedrooms && firstNumber(offer.essentialInfo, /(\d+)\s+bedroom/i) === null) tradeoffs.push('The listing doesn’t give a bedroom count.');
     if (brief.amenities.length && !offer.amenities?.length) tradeoffs.push('The listing doesn’t list its amenities.');
@@ -81,9 +85,14 @@ export function priceOffer(brief: PurchaseBrief, offer: Offer, budget: number, a
   return { lines, total, basis, unknownCosts, tradeoffs, underBudgetBy: budget - total, belowListPriceBy };
 }
 
-export type RejectReason = 'alreadyRejected' | 'noPrice' | 'wrongItem' | 'wrongBrand' | 'wrongCondition' | 'lateDelivery' | 'tooSmall' | 'tooFewBedrooms' | 'missingAmenity' | 'overBudget';
+// "For Sony WH-1000XM5" is a case or ear pad, not the headphones.
+const ACCESSORY = /^\s*for\s|\b(case|cover|ear ?pads?|replacement|charger|cable|skin|protector|compatible with)\b/i;
+
+export type RejectReason = 'accessory' | 'suspiciouslyCheap' | 'alreadyRejected' | 'noPrice' |'wrongItem' | 'wrongBrand' | 'wrongCondition' | 'lateDelivery' | 'tooSmall' | 'tooFewBedrooms' | 'missingAmenity' | 'overBudget';
 
 export const REJECT_TEXT: Record<RejectReason, string> = {
+  accessory: 'an accessory, not the item itself',
+  suspiciouslyCheap: 'priced far below similar listings, so likely not the real item',
   alreadyRejected: 'the group already said no to it',
   noPrice: 'no price listed',
   wrongItem: 'not the exact item requested',
@@ -96,7 +105,7 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   overBudget: 'over the target budget',
 };
 
-export function evaluateOffer(brief: PurchaseBrief, offer: Offer, ctx: { budget: number; asOf: string; rejectedKeys: Set<string> }): { ok: true; priced: Priced } | { ok: false; reason: RejectReason } {
+export function evaluateOffer(brief: PurchaseBrief, offer: Offer, ctx: { budget: number; asOf: string; rejectedKeys: Set<string>; priceFloor?: number }):{ ok: true; priced: Priced } | { ok: false; reason: RejectReason } {
   const reject = (reason: RejectReason) => ({ ok: false as const, reason });
   if (ctx.rejectedKeys.has(offer.key)) return reject('alreadyRejected');
   if (offer.kind === 'product' ? !offer.unitPrice : !offer.stayTotal) return reject('noPrice');
@@ -108,6 +117,8 @@ export function evaluateOffer(brief: PurchaseBrief, offer: Offer, ctx: { budget:
     }
   }
   if (offer.kind === 'product') {
+    if (ACCESSORY.test(offer.title) && !ACCESSORY.test(brief.description)) return reject('accessory');
+    if (ctx.priceFloor && (offer.unitPrice ?? 0) < ctx.priceFloor) return reject('suspiciouslyCheap');
     if (brief.condition === 'new' && offer.condition && !brief.flexibility.refurbished) return reject('wrongCondition');
     const { date } = parseDelivery(offer.deliveryText, ctx.asOf);
     if (brief.deliverBy && date && date > brief.deliverBy) return reject('lateDelivery');

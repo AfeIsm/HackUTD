@@ -10,7 +10,7 @@ import { useConnections } from '@/lib/useConnections';
 import { huddleAction, huddleRequest, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
-import { EMPTY_BRIEF, PurchaseBriefFields, briefPayload } from '@/components/PurchaseBriefFields';
+import { BudgetNote, useBudgetCheck } from '@/components/BudgetCheck';
 
 const PHASE_LABEL = {
   pledging: { label: 'Pledging', className: 'bg-warn-bg text-warn' },
@@ -48,7 +48,7 @@ export default function HuddlesPage() {
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
-  const [brief, setBrief] = useState(EMPTY_BRIEF);
+  const budget = useBudgetCheck(name, total, date, candidates.length);
   const [paying, setPaying] = useState<Record<string, boolean>>({});
   const isPaying = (id: string) => paying[id] ?? id !== 'leo';
   const valid = candidates.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
@@ -134,7 +134,6 @@ export default function HuddlesPage() {
           const res = await huddleRequest('/api/huddles', {
             name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date,
             members: candidates.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
-            brief: briefPayload(brief),
           });
           setBusy(false);
           setError(res.error);
@@ -145,18 +144,18 @@ export default function HuddlesPage() {
         <div className="flex flex-wrap gap-4">
           <label className="flex flex-[2_1_260px] flex-col gap-1.5 text-sm font-semibold">
             What are you planning?
-            <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Beach weekend" />
+            <input className={input} value={name} onChange={(e) => setName(e.target.value)} onBlur={budget.check} placeholder="Beach weekend" />
           </label>
           <label className="flex flex-[1_1_160px] flex-col gap-1.5 text-sm font-semibold">
-            {brief.category ? 'Target budget' : 'Total cost'}
-            <input className={input} inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="1200" />
+            Total cost
+            <input className={input} inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} onBlur={budget.check} placeholder="1200" />
           </label>
           <label className="flex flex-[1_1_180px] flex-col gap-1.5 text-sm font-semibold">
-            {brief.category ? 'Purchase deadline' : 'Pay by'}
+            Pay by
             <input className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
         </div>
-        <PurchaseBriefFields value={brief} onChange={setBrief} />
+        <BudgetNote state={budget.state} />
         <div className="flex flex-col">
           <h3 className="m-0 mb-1 text-[17px]">Who’s coming</h3>
           {candidates.map((id) => {

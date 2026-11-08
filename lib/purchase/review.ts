@@ -14,7 +14,6 @@ const running = (h: Huddle, nowMs: number) => h.search?.status === 'running' && 
 
 /** Why a search can't start right now, or null if it can. */
 export function searchBlocked(h: Huddle, nowMs: number): string | null {
-  if (!h.brief) return 'This huddle has no purchase to search for.';
   if (!isOpen(h)) return 'This huddle is finished.';
   if (running(h, nowMs)) return 'Nemotron is already searching.';
   if (h.review) return 'Finish reviewing the current proposal first.';
@@ -54,7 +53,7 @@ export function settleReview(h: Huddle): Huddle {
   if (need.length === 0 || !need.every((p) => h.review!.acceptedBy.includes(p.memberId))) return h;
   const { proposal } = h.review;
   return advance({
-    ...resetAgreements(h), review: null, selected: proposal, totalCost: proposal.total, lastDecline: null, fairSplit: null,
+    ...resetAgreements(h), review: null, selected: proposal, totalCost: proposal.planTotal, lastDecline: null, fairSplit: null,
     message: `Everyone accepted ${proposal.title}. Nothing has been bought and no money has moved.`,
   });
 }
