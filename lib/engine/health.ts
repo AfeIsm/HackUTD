@@ -9,7 +9,7 @@ import type { Change, FinancialPicture, HealthResult, Indicator, IndicatorKey, O
 import { addDays } from './dates';
 import { forecastBalance } from './forecast';
 import { dataHash } from './hash';
-import { checkSource, freeSavings, savingsBalance } from './source';
+import { EMERGENCY_SAVINGS_FLAG, checkSource, freeSavings, savingsBalance } from './source';
 
 export interface ScoreOptions {
   asOf: string; // YYYY-MM-DD, "today"
@@ -115,6 +115,8 @@ export function scoreHealth(picture: FinancialPicture, opts: ScoreOptions): Heal
     .filter((t) => t.date >= since && t.date <= asOf)
     .reduce((s, t) => s + t.amount, 0);
   const pulled = pulledPast + plannedFromFree;
+  // a real purchase from emergency savings (not just a what-if) gets the same warning
+  if (pulledPast > 0 && !flags.includes(EMERGENCY_SAVINGS_FLAG)) flags.push(EMERGENCY_SAVINGS_FLAG);
   const savings = savingsBalance(picture);
   const pulledRatio = savings > 0 ? pulled / savings : pulled > 0 ? 1 : 0;
   const protectStatus: Status = pulled === 0 ? 'green' : pulledRatio < 0.1 ? 'yellow' : 'red';

@@ -66,6 +66,17 @@ describe('scoreHealth: what-ifs (the demo moments)', () => {
     expect(r.flags).toContain(EMERGENCY_SAVINGS_FLAG);
   });
 
+  it('a RECORDED $180 savings purchase (not a what-if) is flagged too', () => {
+    const spent = {
+      ...alex,
+      accounts: alex.accounts.map((a) => (a.type === 'Savings' ? { ...a, balance: 720 } : a)),
+      txns: [{ id: 'x1', accountId: 'a2', source: 'savings' as const, kind: 'purchase' as const, amount: 180, date: ASOF, description: 'Best Buy' }],
+    };
+    const r = scoreHealth(spent, { asOf: ASOF });
+    expect(r.score).toBe(45);
+    expect(r.flags).toContain(EMERGENCY_SAVINGS_FLAG);
+  });
+
   it('$180 from the Orlando fund → no penalty', () => {
     const r = scoreHealth(alex, { asOf: ASOF, changes: [{ kind: 'oneTime', amount: 180, source: 'savings', goalId: 'orlando', label: 'Orlando deposit' }] });
     expect(r.score).toBe(60);

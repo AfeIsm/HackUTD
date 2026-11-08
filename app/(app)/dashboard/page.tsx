@@ -1,67 +1,78 @@
 'use client';
 
-import { useState } from 'react';
-import type { FinancialPicture, Txn } from '@/lib/types';
-import { DEMO_ASOF, getPerson } from '@/lib/people';
-import { usePicture } from '@/lib/usePicture';
-import { useViewer } from '@/lib/viewer';
-import { scoreHealth } from '@/lib/engine/health';
+import { useEffect, useState } from 'react';
+import type { HealthPayload } from '@/lib/services/health';
 import { freeSavings } from '@/lib/engine/source';
 import { dayDate, money, money0 } from '@/lib/format';
+import { getPerson } from '@/lib/people';
+import { invalidatePicture } from '@/lib/usePicture';
+import { useViewer } from '@/lib/viewer';
 import { AddPurchase, type NewPurchase } from '@/components/AddPurchase';
 import { ForecastChart } from '@/components/ForecastChart';
 import { IndicatorList } from '@/components/IndicatorList';
 import { ObligationsList } from '@/components/ObligationsList';
 import { ScoreGauge } from '@/components/ScoreGauge';
-import { Card, Eyebrow, StatusPill, btn2 } from '@/components/ui';
+import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
 
-// What the user changed in this session, per person. (Later: saved through the API.)
-interface Edits {
-  purchases: Txn[];
-  goalSpend: Record<string, number>;
-  tags: Record<string, boolean>;
-  trigger: string;
-  checkedAt: string | null;
-}
-const NO_EDITS: Edits = { purchases: [], goalSpend: {}, tags: {}, trigger: 'data synced', checkedAt: null };
+const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-const nowLabel = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-function applyEdits(picture: FinancialPicture, edits: Edits): FinancialPicture {
-  let accounts = picture.accounts;
-  for (const t of edits.purchases) {
-    accounts = accounts.map((a) => (a.id === t.accountId ? { ...a, balance: round2(a.balance - t.amount) } : a));
-  }
-  return {
-    ...picture,
-    accounts,
-    txns: [...picture.txns, ...edits.purchases],
-    goals: picture.goals.map((g) => ({ ...g, amount: Math.max(0, round2(g.amount - (edits.goalSpend[g.id] ?? 0))) })),
-    obligations: picture.obligations.map((o) => (o.key in edits.tags ? { ...o, essential: edits.tags[o.key] } : o)),
-  };
+interface Loaded {
+  id: string;
+  payload?: HealthPayload;
+  error?: string;
 }
 
 export default function DashboardPage() {
   const { viewerId } = useViewer();
   const person = getPerson(viewerId);
-  const [editsBy, setEditsBy] = useState<Record<string, Edits>>({});
-  const [rerunNote, setRerunNote] = useState<string | null>(null);
-  const loaded = usePicture(person.id);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
-  const edits = editsBy[person.id] ?? NO_EDITS;
-  const update = (next: Partial<Edits>) => {
-    setEditsBy((all) => ({ ...all, [person.id]: { ...(all[person.id] ?? NO_EDITS), ...next } }));
-    setRerunNote(null);
+  // Load the latest saved health check (runs a first one if there's none)
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/health?member=${encodeURIComponent(person.id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((payload: HealthPayload) => alive && setLoaded({ id: person.id, payload }))
+      .catch(() => alive && setLoaded({ id: person.id, error: 'Couldn’t load your accounts. Refresh to try again.' }));
+    return () => {
+      alive = false;
+    };
+  }, [person.id]);
+
+  const current = loaded?.id === person.id ? loaded : null;
+  const payload = current?.payload;
+  const result = payload?.result;
+  const picture = payload?.picture;
+  const shownNote = note?.id === person.id ? note : null;
+
+  // Save something, then show the fresh (automatically re-run) health check
+  const send = async (url: string, method: string, body: Record<string, unknown>, describe: (p: HealthPayload) => string | null) => {
+    setBusy(true);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member: person.id, ...body }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setLoaded({ id: person.id, payload: data });
+      invalidatePicture(person.id);
+      const text = describe(data);
+      setNote(text ? { id: person.id, text, ok: true } : null);
+    } catch (err) {
+      setNote({ id: person.id, text: `Couldn’t save that: ${(err as Error).message}`, ok: false });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (loaded.status !== 'ready' || !loaded.picture) {
-    const message =
-      loaded.status === 'loading'
-        ? 'Loading your accounts…'
-        : loaded.status === 'error'
-          ? 'Couldn’t load your accounts. Refresh to try again.'
-          : `${person.name} doesn’t have any accounts yet, so there’s nothing to score.`;
+  if (!current || !result || !picture) {
+    const message = !current
+      ? 'Loading your accounts…'
+      : current.error ?? `${person.name} doesn’t have any accounts yet, so there’s nothing to score.`;
     return (
       <>
         <PageTitle name={person.name} />
@@ -72,50 +83,21 @@ export default function DashboardPage() {
     );
   }
 
-  const picture = applyEdits(loaded.picture, edits);
-  const result = scoreHealth(picture, { asOf: DEMO_ASOF, trigger: edits.trigger });
-
-  const addPurchase = (p: NewPurchase) => {
-    const isChecking = p.from === 'checking';
-    const account = picture.accounts.find((a) => a.type === (isChecking ? 'Checking' : 'Savings'));
-    if (!account) return;
-    const goalId = !isChecking && p.from !== 'free' ? p.from : null;
-    const txn: Txn = {
-      id: `new-${person.id}-${edits.purchases.length + 1}`,
-      accountId: account.id,
-      source: isChecking ? 'checking' : 'savings',
-      kind: 'purchase',
-      amount: p.amount,
-      date: DEMO_ASOF,
-      description: p.merchant,
-      merchant: p.merchant,
-      category: goalId ? `goal:${goalId}` : undefined,
-    };
-    const where = isChecking ? 'checking' : goalId ? picture.goals.find((g) => g.id === goalId)?.name ?? 'a goal' : 'savings';
-    update({
-      purchases: [...edits.purchases, txn],
-      goalSpend: goalId ? { ...edits.goalSpend, [goalId]: (edits.goalSpend[goalId] ?? 0) + p.amount } : edits.goalSpend,
-      trigger: `${money0(p.amount)} purchase at ${p.merchant} (from ${where})`,
-      checkedAt: nowLabel(),
-    });
-  };
-
+  const addPurchase = (p: NewPurchase) => send('/api/purchases', 'POST', { merchant: p.merchant, amount: p.amount, from: p.from }, () => null);
   const toggleTag = (key: string) => {
-    const current = picture.obligations.find((o) => o.key === key);
-    if (!current) return;
-    update({ tags: { ...edits.tags, [key]: !current.essential }, trigger: `you re-tagged ${current.name}`, checkedAt: nowLabel() });
+    const o = picture.obligations.find((x) => x.key === key);
+    if (o) send('/api/obligations', 'PATCH', { key, essential: !o.essential }, () => null);
   };
-
-  const rerun = () => {
-    const at = nowLabel();
-    setEditsBy((all) => ({ ...all, [person.id]: { ...edits, checkedAt: at } }));
-    setRerunNote(`Re-ran at ${at}. Same data, same score.`);
-  };
+  const rerun = () =>
+    send('/api/health', 'POST', {}, (p) =>
+      p.unchanged ? `Re-ran at ${timeLabel(p.result!.checkedAt)}. Same data, same score.` : 'Re-ran: your data changed since the last check.');
+  const clearPurchases = () => send('/api/purchases', 'DELETE', {}, () => 'Cleared the purchases you added.');
 
   const checking = picture.accounts.filter((a) => a.type === 'Checking');
   const savings = picture.accounts.filter((a) => a.type === 'Savings');
   const cards = picture.accounts.filter((a) => a.type === 'Credit Card');
   const setAside = picture.goals.reduce((s, g) => s + g.amount, 0);
+  const added = picture.txns.filter((t) => t.id.startsWith('app-'));
 
   return (
     <>
@@ -139,13 +121,15 @@ export default function DashboardPage() {
           <ScoreGauge score={result.score} status={result.overall} />
           <StatusPill status={result.overall} />
           <p className="m-0 text-[13px] leading-normal text-muted">
-            Score {result.score}
-            {edits.checkedAt ? ` · checked ${edits.checkedAt}` : ''} · after: {edits.trigger}
+            Score {result.score} · checked {timeLabel(result.checkedAt)} · after: {result.trigger}
           </p>
-          {rerunNote && <p className="m-0 rounded-lg bg-good-bg px-3 py-2 text-[13px] text-good">{rerunNote}</p>}
-          <button type="button" className={`${btn2} mt-auto w-full`} onClick={rerun}>
-            Re-run health check
+          {shownNote && (
+            <p className={`m-0 rounded-lg px-3 py-2 text-[13px] ${shownNote.ok ? 'bg-good-bg text-good' : 'bg-bad-bg text-bad'}`}>{shownNote.text}</p>
+          )}
+          <button type="button" className={`${btn2} mt-auto w-full`} onClick={rerun} disabled={busy}>
+            {busy ? 'Checking…' : 'Re-run health check'}
           </button>
+          <span className="text-xs text-muted">{payload.saved ? 'Every check is saved to your history.' : 'History isn’t being saved right now.'}</span>
         </Card>
 
         <Card label="Indicators" className="flex min-w-0 flex-[999_1_560px] flex-col gap-1">
@@ -160,11 +144,34 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <Card label="Add a purchase">
-        <h2 className="m-0 mb-3 text-xl">Add a purchase</h2>
-        <AddPurchase picture={picture} onAdd={addPurchase} />
-        <p className="mt-2 text-xs text-muted">Your health check re-runs automatically.</p>
-      </Card>
+      <div className="flex flex-wrap items-start gap-5">
+        <Card label="Add a purchase" className="min-w-0 flex-[999_1_520px]">
+          <h2 className="m-0 mb-3 text-xl">Add a purchase</h2>
+          <AddPurchase picture={picture} onAdd={addPurchase} />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="m-0 text-xs text-muted">Your health check re-runs automatically.</p>
+            {added.length > 0 && (
+              <button type="button" onClick={clearPurchases} disabled={busy} className="cursor-pointer border-0 bg-transparent p-1 text-xs font-semibold text-accent">
+                Clear {added.length} added {added.length === 1 ? 'purchase' : 'purchases'}
+              </button>
+            )}
+          </div>
+        </Card>
+        {payload.history.length > 0 && (
+          <Card label="Recent checks" className="flex min-w-0 flex-[1_1_300px] flex-col gap-2">
+            <h2 className="m-0 text-xl">Recent checks</h2>
+            <ul className="m-0 flex list-none flex-col p-0">
+              {payload.history.map((h, i) => (
+                <li key={`${h.createdAt}-${i}`} className="flex items-center gap-3 border-t border-[#EFEFEA] py-2 text-[13px]">
+                  <span className={`w-8 font-display text-base font-bold ${TONE[h.overall].pill.split(' ')[1]}`}>{h.score}</span>
+                  <span className="min-w-0 flex-1 truncate text-ink-2">{h.trigger}</span>
+                  <span className="text-muted">{timeLabel(h.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
 
       <section aria-label="Accounts" className="flex flex-wrap gap-4">
         {checking.map((a) => (

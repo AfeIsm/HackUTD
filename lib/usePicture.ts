@@ -33,6 +33,11 @@ function fetchPicture(memberId: string): Promise<void> {
   return p;
 }
 
+/** Forget a cached picture after it changed (e.g. a purchase was saved), so pages refetch it. */
+export function invalidatePicture(memberId: string) {
+  cache.delete(memberId);
+}
+
 /** One person's picture. */
 export function usePicture(memberId: string): PictureState {
   return usePictures([memberId])[memberId];

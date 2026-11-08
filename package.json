@@ -8,9 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "seed": "node lib/nessie/seed.mjs"
+    "seed": "node lib/nessie/seed.mjs",
+    "db:check": "node lib/db/check.mjs"
   },
   "dependencies": {
+    "mongodb": "^7.8.0",
     "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0"
