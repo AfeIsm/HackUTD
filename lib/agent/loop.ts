@@ -46,6 +46,7 @@ const SYSTEM = (asOf: string) => `You are Wallet Whisperer's money coach, workin
 How you work:
 1. Call get_overview first. Call get_spending if the question involves spending, subscriptions or cutting back.
 2. Turn the user's goal and constraints into concrete options, and test 2-3 of them with simulate (or can_afford for a purchase). Respect what the user said they will NOT give up.
+   When calculating dates for a future month or date (e.g. "March 1"), ALWAYS use the upcoming year relative to today ${asOf}. For example, if today is late 2026, March 1 is in 2027 (e.g. 2027-03-01), NOT an expired past date in 2026!
    Prefer real changes, in this order: cancelling non-essential subscriptions the user didn't protect, saving weekly, buying later (after a payday). Moving savings to checking is a LAST resort and only a short-term fix.
 3. Always call simulate (or can_afford) at least once yourself before finishing, even if you also asked get_engine_fix_plan.
    If can_afford says no, try options with simulate: weeklySavings until the date, cancelling non-essential subscriptions, or paying from the savings account, combined with the same purchase.
@@ -64,11 +65,15 @@ function describe(name: string, args: Record<string, unknown>, result: unknown):
   const r = result as Record<string, unknown>;
   if (name === 'get_overview') return `Read your accounts: score ${r.score} (${r.status}), income ${r.monthlyIncome}/mo.`;
   if (name === 'get_spending') return `Looked at the last ${r.days} days of spending (${r.totalSpent}) and your recurring bills.`;
-  if (name === 'can_afford') return `Checked if you can afford ${money0(Math.round(Number(args.amount) * 100))}: ${r.verdict}${r.readyDate ? ` (OK after ${r.readyDate})` : ''}, score ${r.scoreBefore} → ${r.scoreAfter}.`;
+  if (name === 'can_afford') {
+    const verdictText = r.verdict === 'yes' ? 'Affordable today' : r.verdict === 'yesIf' ? `Affordable if planned${r.readyDate ? ` (ready ${r.readyDate})` : ''}` : 'Not affordable right now';
+    const impact = r.scoreBefore === r.scoreAfter ? `score stays ${r.scoreBefore}` : `score ${r.scoreBefore} → ${r.scoreAfter}`;
+    return `Checked ${money0(Math.round(Number(args.amount) * 100))}: ${verdictText} (${impact}).`;
+  }
   if (name === 'get_engine_fix_plan') return `Asked the scoring engine for its smallest fix: ${r.summary}`;
   if (name === 'simulate') {
     const s = result as ReturnType<typeof runScenario>;
-    if (!s.ok) return `Tried an option that didn't work: ${s.error}`;
+    if (!s.ok) return `Option check failed: ${s.error}`;
     return `Simulated ${s.actions.join(' + ') || 'no changes'} → score ${s.before.score} → ${s.after?.score} (${s.after?.status}).`;
   }
   return name;
