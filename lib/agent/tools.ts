@@ -71,7 +71,19 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
   }
   if (input.purchase) {
     const cents = toCents(input.purchase.amount);
-    const date = input.purchase.date ?? asOf;
+    let date = input.purchase.date ?? asOf;
+    // If the model passes a date earlier in the calendar year (e.g. 2026-03-01 when today is 2026-11-07),
+    // roll it over to the upcoming year (2027-03-01) instead of rejecting.
+    if (validDate(date) && date < asOf) {
+      const [y, m, d] = date.split('-').map(Number);
+      const asOfYear = Number(asOf.split('-')[0]);
+      if (y <= asOfYear) {
+        const nextYearDate = `${asOfYear + 1}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (validDate(nextYearDate) && nextYearDate >= asOf && daysBetween(asOf, nextYearDate) <= 335) {
+          date = nextYearDate;
+        }
+      }
+    }
     if (!Number.isSafeInteger(cents) || cents <= 0) return fail('Purchase amount must be positive.');
     if (!validDate(date) || date < asOf || daysBetween(asOf, date) > 335) return fail(`Purchase date must be between ${asOf} and ${addDays(asOf, 335)}.`);
     if (!owned.some((a) => a.id === input.purchase!.accountId && a.type !== 'Credit Card')) return fail('Pay from one of your checking or savings account ids (see get_overview).');

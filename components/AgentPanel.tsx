@@ -101,18 +101,27 @@ export function AgentPanel({ onApplied }: { onApplied: (payload: HealthPayload, 
       </div>
 
       {steps.length > 0 && (
-        <ol aria-label="What the agent did" aria-live="polite" className="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-soft p-3 text-[14px]">
-          {steps.map((s, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span aria-hidden="true" className="w-5 shrink-0 text-center">{STEP_ICON[s.type]}</span>
-              <span className="min-w-0">
-                {s.tool && <code className="mr-1.5 rounded bg-surface px-1.5 py-0.5 text-[12px] text-muted">{s.tool}</code>}
-                {s.text}
-              </span>
-            </li>
-          ))}
-          {running && <li className="pl-7 text-muted">Working…</li>}
-        </ol>
+        <details className="group rounded-xl bg-soft text-[14px]">
+          <summary className="flex cursor-pointer items-center justify-between p-3 font-semibold text-ink-2 select-none hover:text-ink">
+            <span className="flex items-center gap-2">
+              <span>{running ? '⏳' : '📋'}</span>
+              <span>Agent steps ({steps.length})</span>
+            </span>
+            <span className="text-xs text-muted group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <ol aria-label="What the agent did" aria-live="polite" className="m-0 flex list-none flex-col gap-1.5 border-t border-line/50 p-3 pt-2 text-[14px]">
+            {steps.map((s, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span aria-hidden="true" className="w-5 shrink-0 text-center">{STEP_ICON[s.type]}</span>
+                <span className="min-w-0">
+                  {s.tool && <code className="mr-1.5 rounded bg-surface px-1.5 py-0.5 text-[12px] text-muted">{s.tool}</code>}
+                  {s.text}
+                </span>
+              </li>
+            ))}
+            {running && <li className="pl-7 text-muted">Working…</li>}
+          </ol>
+        </details>
       )}
 
       {error && <p role="alert" className="m-0 rounded-xl bg-bad-bg px-4 py-3 text-sm text-bad">{error}</p>}
