@@ -7,7 +7,7 @@ import { requireViewer } from '@/lib/auth/viewer';
 import { validCents } from '@/lib/engine/money';
 import { checkBudget } from '@/lib/purchase/viability';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const viewer = await requireViewer();

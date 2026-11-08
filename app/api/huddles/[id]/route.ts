@@ -13,7 +13,7 @@ import { transferPledge } from '@/lib/services/transfer';
 import type { DeclineReason } from '@/lib/types';
 
 // Long enough for Nemotron's background pledge advice (after()) to finish.
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 const REASONS: DeclineReason[] = ['changeMyAmount', 'unfairSplit', 'totalOrDate', 'out'];
 
