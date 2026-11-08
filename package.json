@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "node lib/nessie/seed.mjs",
-    "db:check": "node lib/db/check.mjs"
+    "db:check": "node lib/db/check.mjs",
+    "seed:users": "node lib/auth/seed-users.mjs"
   },
   "dependencies": {
     "mongodb": "^7.8.0",

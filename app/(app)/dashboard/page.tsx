@@ -35,7 +35,7 @@ export default function DashboardPage() {
   // Load the latest saved health check (runs a first one if there's none)
   useEffect(() => {
     let alive = true;
-    fetch(`/api/health?member=${encodeURIComponent(person.id)}`)
+    fetch('/api/health') // the server knows who you are from the session
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((payload: HealthPayload) => alive && setLoaded({ id: person.id, payload }))
       .catch(() => alive && setLoaded({ id: person.id, error: 'Couldn’t load your accounts. Refresh to try again.' }));
@@ -57,7 +57,7 @@ export default function DashboardPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ member: person.id, ...body }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);

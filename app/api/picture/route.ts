@@ -1,14 +1,18 @@
-// GET /api/picture?member=alex → that member's FinancialPicture
+// GET /api/picture            → the logged-in user's FinancialPicture
+// GET /api/picture?member=x   → someone else's, only if canSeePicture allows it (own household)
 // (Nessie data + purchases/tags they saved in the app, from MongoDB).
-// Demo note: no real login yet, so any member can be requested (PLAN.md §8: demo-level privacy).
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { PEOPLE } from '@/lib/people';
 import { buildPicture } from '@/lib/services/picture';
+import { canSeePicture, requireViewer } from '@/lib/auth/viewer';
 
 export async function GET(request: NextRequest) {
-  const memberId = request.nextUrl.searchParams.get('member') ?? 'alex';
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  const memberId = request.nextUrl.searchParams.get('member') || viewer.memberId;
   if (!PEOPLE.some((p) => p.id === memberId)) return NextResponse.json({ error: 'Unknown member' }, { status: 404 });
+  if (!canSeePicture(viewer.memberId, memberId)) return NextResponse.json({ error: 'That’s private.' }, { status: 403 });
   const { picture, source } = await buildPicture(memberId);
   return NextResponse.json({ picture, source });
 }

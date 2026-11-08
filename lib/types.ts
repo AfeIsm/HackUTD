@@ -225,3 +225,13 @@ export interface AgentStep {
   text: string;
   tool?: string;
 }
+
+// ---------- Accounts (F6) ----------
+// What the browser may know about a logged-in user. Never includes the password hash.
+export interface PublicUser {
+  id: string;
+  username: string; // shown as @username
+  name: string;
+  email: string;
+  memberId: string | null; // links to their money data; null until they have accounts
+}

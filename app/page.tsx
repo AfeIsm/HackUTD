@@ -15,10 +15,10 @@ export default function LandingPage() {
           Wallet Whisperer
         </Link>
         <nav aria-label="Account" className="flex items-center gap-2">
-          <Link href="/dashboard" className="px-2 py-3 font-semibold text-ink no-underline hover:text-accent">
+          <Link href="/login" className="px-2 py-3 font-semibold text-ink no-underline hover:text-accent">
             Log in
           </Link>
-          <Link href="/dashboard" className={btn}>
+          <Link href="/signup" className={btn}>
             Get started
           </Link>
         </nav>
@@ -32,7 +32,7 @@ export default function LandingPage() {
             and friends without sharing your finances.
           </p>
           <div className="flex flex-wrap items-center gap-4">
-            <Link href="/dashboard" className={`${btn} min-h-12 px-6 text-base`}>
+            <Link href="/signup" className={`${btn} min-h-12 px-6 text-base`}>
               Get started
             </Link>
           </div>
