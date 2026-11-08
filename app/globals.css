@@ -37,8 +37,18 @@ button:disabled { cursor: not-allowed; }
 .page-body input, .page-body select { min-width: 0; }
 .page-sheet { overflow-wrap: anywhere; }
 .page-header-inner .btn-ghost { color: var(--foreground); }
-.page-buy .page-header-inner { min-height: 260px; }
-.page-buy .page-title, .page-buy .page-intro { width: fit-content; background: var(--note-light); border-radius: 8px; padding: 4px 12px; }
+.page-buy .page-header-inner {
+  min-height: 260px;
+  background: linear-gradient(
+    to right,
+    oklch(0.86 0.06 150 / 0.75) 0%,
+    oklch(0.86 0.06 150 / 0.5) 55%,
+    transparent 100%
+  );
+  padding-left: 36px;
+}
+.page-buy .page-title { color: var(--note-ink); font-weight: 700; }
+.page-buy .page-intro { color: var(--note-ink); opacity: 0.85; font-size: 0.95rem; }
 .skip-link { position: fixed; left: 20px; top: -100px; z-index: 100; padding: 10px 16px; background: var(--paper); border-radius: 8px; }
 .skip-link:focus { top: 16px; }
 .wallet-session-note { position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 20; text-align: center; }
