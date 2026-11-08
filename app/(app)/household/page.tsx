@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { FinancialPicture } from '@/lib/types';
-import { scoreHealth } from '@/lib/engine/health';
+import { scoreHealth, monthly } from '@/lib/engine/health';
 import { dayDate, money, money0 } from '@/lib/format';
 import { DEMO_ASOF, HOUSEHOLD_IDS, getPerson } from '@/lib/people';
 import { useHuddleStore } from '@/lib/huddles';
@@ -11,7 +11,7 @@ import { FamilyCarousel, type FamilySlide } from '@/components/FamilyCarousel';
 import { Card, Eyebrow } from '@/components/ui';
 
 const PER_MONTH: Record<number, number> = { 7: 52 / 12, 14: 26 / 12, 15: 2, 30: 1 };
-const monthlyPay = (p: FinancialPicture) => (p.paycheck ? p.paycheck.avgAmount * (PER_MONTH[p.paycheck.cadenceDays] ?? 1) : 0);
+const monthlyPay = (p: FinancialPicture) => (p.paycheck ? Math.round(p.paycheck.avgAmount * (PER_MONTH[p.paycheck.cadenceDays] ?? 1)) : 0);
 const balanceOf = (p: FinancialPicture, type: 'Checking' | 'Savings') =>
   p.accounts.filter((a) => a.type === type).reduce((s, a) => s + a.balance, 0);
 
@@ -25,7 +25,7 @@ export default function HouseholdPage() {
     const picture = state?.status === 'ready' ? state.picture : null;
     const loading = person.hasAccounts && (!state || state.status === 'loading');
     const result = picture ? scoreHealth(picture, { asOf: DEMO_ASOF }) : null;
-    const weakest = result ? [...result.indicators].sort((a, b) => a.points - b.points || b.weight - a.weight)[0] : null;
+    const weakest = result ? [...result.indicators].sort((a, b) => (a.points ?? -1) - (b.points ?? -1) || b.weight - a.weight)[0] : null;
     return {
       id, name: id === 'alex' ? 'Alex (you)' : person.name, roleLabel: person.roleLabel, initial: person.initial, color: person.color,
       result, loading,
@@ -48,7 +48,7 @@ export default function HouseholdPage() {
 
   const ready = HOUSEHOLD_IDS.map((id) => pictures[id]).flatMap((s) => (s?.status === 'ready' && s.picture ? [s.picture] : []));
   const income = ready.reduce((s, p) => s + monthlyPay(p), 0);
-  const essential = ready.reduce((s, p) => s + p.obligations.filter((o) => o.essential).reduce((x, o) => x + o.amount, 0), 0);
+  const essential = ready.reduce((s, p) => s + p.obligations.filter((o) => o.essential).reduce((x, o) => x + monthly(o), 0), 0);
   const savings = ready.reduce((s, p) => s + balanceOf(p, 'Savings'), 0);
   const openHuddles = store.huddles.filter(
     (h) => h.phase !== 'locked' && h.phase !== 'cancelled' && h.participants.some((p) => HOUSEHOLD_IDS.includes(p.memberId)),

@@ -5,7 +5,7 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
   return (
     <div className="flex flex-col">
       {indicators.map((i) => {
-        const earned = (i.points * i.weight) / 100;
+        const earned = ((i.points ?? 0) * i.weight) / 100;
         return (
           <div key={i.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#EFEFEA] py-3.5">
             <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
@@ -18,7 +18,7 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
             <span className="min-w-[92px] text-right font-display text-xl font-semibold">{i.display}</span>
             <StatusPill status={i.status} className="min-w-[72px] justify-center" />
             <span className="min-w-16 text-right text-[13px] text-muted">
-              +{earned % 1 ? earned.toFixed(1) : earned} pts
+              {i.points === null ? '—' : `+${earned % 1 ? earned.toFixed(1) : earned} pts`}
             </span>
           </div>
         );

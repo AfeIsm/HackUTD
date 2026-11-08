@@ -1,59 +1,41 @@
 'use client';
 
-// Loads FinancialPictures from /api/picture (Nessie, or local.json offline).
-// Results are kept in memory so switching pages or people doesn't refetch.
-
-import { useEffect, useState } from 'react';
+// Subscribe to the shared cache so asynchronous results remain reactive under
+// the React compiler. Identity switching reuses an unchanged loaded picture.
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { FinancialPicture } from './types';
-
 export type PictureState =
   | { status: 'loading' }
   | { status: 'ready'; picture: FinancialPicture | null; source: string }
   | { status: 'error' };
-
-const cache = new Map<string, PictureState>();
+let snapshot: Record<string, PictureState> = {};
+const emptySnapshot: Record<string, PictureState> = {};
 const inflight = new Map<string, Promise<void>>();
-
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+const getSnapshot = () => snapshot;
+const getServerSnapshot = () => emptySnapshot;
+function publish(memberId: string, state: PictureState) {
+  snapshot = { ...snapshot, [memberId]: state };
+  listeners.forEach((listener) => listener());
+}
 function fetchPicture(memberId: string): Promise<void> {
   const existing = inflight.get(memberId);
   if (existing) return existing;
-  const p = fetch(`/api/picture?member=${encodeURIComponent(memberId)}`)
-    .then((res) => {
-      if (!res.ok) throw new Error(String(res.status));
-      return res.json();
-    })
-    .then((data: { picture: FinancialPicture | null; source: string }) => {
-      cache.set(memberId, { status: 'ready', picture: data.picture, source: data.source });
-    })
-    .catch(() => {
-      cache.set(memberId, { status: 'error' });
-    })
+  const request = fetch(`/api/picture?member=${encodeURIComponent(memberId)}`)
+    .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
+    .then((data: { picture: FinancialPicture | null; source: string }) => publish(memberId, { status: 'ready', picture: data.picture, source: data.source }))
+    .catch(() => publish(memberId, { status: 'error' }))
     .finally(() => inflight.delete(memberId));
-  inflight.set(memberId, p);
-  return p;
+  inflight.set(memberId, request);
+  return request;
 }
-
-/** One person's picture. */
-export function usePicture(memberId: string): PictureState {
-  return usePictures([memberId])[memberId];
-}
-
-/** Several people's pictures (e.g. the household carousel or a huddle's fair split). */
+export function usePicture(memberId: string): PictureState { return usePictures([memberId])[memberId]; }
 export function usePictures(memberIds: string[]): Record<string, PictureState> {
   const key = memberIds.join(',');
-  const [, setVersion] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    const missing = key.split(',').filter((id) => id && !cache.has(id));
-    if (missing.length === 0) return;
-    Promise.all(missing.map(fetchPicture)).then(() => {
-      if (alive) setVersion((v) => v + 1);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-
-  return Object.fromEntries(memberIds.map((id) => [id, cache.get(id) ?? { status: 'loading' }]));
+  const currentSnapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  useEffect(() => { key.split(',').filter((id) => id && !snapshot[id]).forEach((id) => { void fetchPicture(id); }); }, [key]);
+  return useMemo(() => {
+    return Object.fromEntries(key.split(',').filter(Boolean).map((id) => [id, currentSnapshot[id] ?? { status: 'loading' }]));
+  }, [key, currentSnapshot]);
 }

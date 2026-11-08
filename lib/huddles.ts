@@ -6,7 +6,7 @@
 // must then run on the server (PLAN.md §8): the browser should never receive hidden data.
 
 import { useSyncExternalStore } from 'react';
-import type { DeclineReason, HuddleParticipantPublic, HuddlePhase, Source } from './types';
+import type { DeclineReason, HuddleParticipantPublic, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
 import { getPerson } from './people';
 
@@ -15,7 +15,7 @@ export interface Participant {
   isPaying: boolean;
   joined: boolean; // friends join by accepting an invite
   pledge: number | null;
-  source: Source | null;
+  sourceAccountId: string | null;
   goalId: string | null;
   committed: boolean;
   checkPassed: boolean | null;
@@ -52,19 +52,19 @@ interface State {
 }
 
 const participant = (memberId: string, over: Partial<Participant> = {}): Participant => ({
-  memberId, isPaying: true, joined: true, pledge: null, source: null, goalId: null,
+  memberId, isPaying: true, joined: true, pledge: null, sourceAccountId: null, goalId: null,
   committed: false, checkPassed: null, feedback: null, suggestion: null, agreed: false, ...over,
 });
 
 let state: State = {
   huddles: [
     {
-      id: 'orlando', name: 'Orlando trip', totalCost: 4000, targetDate: '2027-03-20', createdBy: 'alex',
+      id: 'orlando', name: 'Orlando trip', totalCost: 400000, targetDate: '2027-03-20', createdBy: 'alex',
       phase: 'pledging', round: 1, message: null, lastDecline: null,
       participants: [
         participant('alex'),
-        participant('jordan', { pledge: 1800, source: 'checking', committed: true, checkPassed: true }),
-        participant('maya', { pledge: 100, source: 'checking', committed: true, checkPassed: true }),
+        participant('jordan'),
+        participant('maya'),
         participant('leo', { isPaying: false }),
         participant('sam', { joined: false }),
       ],
@@ -115,7 +115,7 @@ function updateParticipant(h: Huddle, memberId: string, fn: (p: Participant) => 
 
 // ---------- actions ----------
 export function submitPledge(
-  huddleId: string, memberId: string, pledge: { amount: number; source: Source; goalId?: string }, check: PledgeCheck,
+  huddleId: string, memberId: string, pledge: { amount: number; sourceAccountId: string; goalId?: string }, check: PledgeCheck,
 ) {
   updateHuddle(huddleId, (h) => {
     // a new pledge resets agreements: everyone re-agrees to the new numbers
@@ -123,12 +123,12 @@ export function submitPledge(
     return updateParticipant(reset, memberId, (p) => ({
       ...p,
       pledge: pledge.amount,
-      source: pledge.source,
+      sourceAccountId: pledge.sourceAccountId,
       goalId: pledge.goalId ?? null,
       committed: check.passed,
       checkPassed: check.passed,
       feedback: check.reason,
-      suggestion: check.suggestion ? { amount: check.suggestion.amount, text: check.suggestion.text } : null,
+      suggestion: null,
     }));
   });
 }

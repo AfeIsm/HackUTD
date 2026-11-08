@@ -6,7 +6,7 @@ import { DEMO_ASOF, getPerson } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { scoreHealth } from '@/lib/engine/health';
-import { freeSavings } from '@/lib/engine/source';
+import { freeSavings, checkSource } from '@/lib/engine/source';
 import { dayDate, money, money0 } from '@/lib/format';
 import { AddPurchase, type NewPurchase } from '@/components/AddPurchase';
 import { ForecastChart } from '@/components/ForecastChart';
@@ -25,19 +25,18 @@ interface Edits {
 }
 const NO_EDITS: Edits = { purchases: [], goalSpend: {}, tags: {}, trigger: 'data synced', checkedAt: null };
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const nowLabel = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
 function applyEdits(picture: FinancialPicture, edits: Edits): FinancialPicture {
   let accounts = picture.accounts;
   for (const t of edits.purchases) {
-    accounts = accounts.map((a) => (a.id === t.accountId ? { ...a, balance: round2(a.balance - t.amount) } : a));
+    accounts = accounts.map((a) => (a.id === t.accountId ? { ...a, balance: a.balance - t.amount } : a));
   }
   return {
     ...picture,
     accounts,
     txns: [...picture.txns, ...edits.purchases],
-    goals: picture.goals.map((g) => ({ ...g, amount: Math.max(0, round2(g.amount - (edits.goalSpend[g.id] ?? 0))) })),
+    goals: picture.goals.map((g) => ({ ...g, amount: Math.max(0, g.amount - (edits.goalSpend[g.id] ?? 0)) })),
     obligations: picture.obligations.map((o) => (o.key in edits.tags ? { ...o, essential: edits.tags[o.key] } : o)),
   };
 }
@@ -76,16 +75,19 @@ export default function DashboardPage() {
   const result = scoreHealth(picture, { asOf: DEMO_ASOF, trigger: edits.trigger });
 
   const addPurchase = (p: NewPurchase) => {
-    const isChecking = p.from === 'checking';
-    const account = picture.accounts.find((a) => a.type === (isChecking ? 'Checking' : 'Savings'));
+    const account = picture.accounts.find((a) => a.id === p.sourceAccountId && a.ownerMemberId === person.id);
     if (!account) return;
-    const goalId = !isChecking && p.from !== 'free' ? p.from : null;
+    const isChecking = account.type === 'Checking';
+    const goalId = p.goalId ?? null;
+    const source = checkSource(picture, p.amount, account.id, p.goalId);
+    if (!source.valid) return;
     const txn: Txn = {
       id: `new-${person.id}-${edits.purchases.length + 1}`,
       accountId: account.id,
       source: isChecking ? 'checking' : 'savings',
       kind: 'purchase',
       amount: p.amount,
+      goalAllocationUsed: source.fromGoal,
       date: DEMO_ASOF,
       description: p.merchant,
       merchant: p.merchant,
@@ -94,7 +96,7 @@ export default function DashboardPage() {
     const where = isChecking ? 'checking' : goalId ? picture.goals.find((g) => g.id === goalId)?.name ?? 'a goal' : 'savings';
     update({
       purchases: [...edits.purchases, txn],
-      goalSpend: goalId ? { ...edits.goalSpend, [goalId]: (edits.goalSpend[goalId] ?? 0) + p.amount } : edits.goalSpend,
+      goalSpend: goalId ? { ...edits.goalSpend, [goalId]: (edits.goalSpend[goalId] ?? 0) + source.fromGoal } : edits.goalSpend,
       trigger: `${money0(p.amount)} purchase at ${p.merchant} (from ${where})`,
       checkedAt: nowLabel(),
     });
@@ -115,12 +117,13 @@ export default function DashboardPage() {
   const checking = picture.accounts.filter((a) => a.type === 'Checking');
   const savings = picture.accounts.filter((a) => a.type === 'Savings');
   const cards = picture.accounts.filter((a) => a.type === 'Credit Card');
-  const setAside = picture.goals.reduce((s, g) => s + g.amount, 0);
+
 
   return (
     <>
       <PageTitle name={person.name} />
 
+      {result.missingInputs.length > 0 && <Card label="Complete your assessment"><h2 className="text-xl">Needs input</h2><ul>{result.missingInputs.map((m) => <li key={m}>{m}</li>)}</ul></Card>}
       {result.flags.length > 0 && (
         <div role="alert" className="flex items-start gap-3.5 rounded-xl border border-[#F2C3BF] bg-bad-bg px-5 py-4 text-[#7A1712]">
           <WarningIcon />
@@ -128,7 +131,7 @@ export default function DashboardPage() {
             {result.flags.map((f) => (
               <strong key={f}>{f}</strong>
             ))}
-            <span className="text-sm">Your score is now {result.score}. See what changed below.</span>
+            <span className="text-sm">Your score is now {result.score ?? 'incomplete'}. See what changed below.</span>
           </div>
         </div>
       )}
@@ -139,7 +142,7 @@ export default function DashboardPage() {
           <ScoreGauge score={result.score} status={result.overall} />
           <StatusPill status={result.overall} />
           <p className="m-0 text-[13px] leading-normal text-muted">
-            Score {result.score}
+            Score {result.score ?? 'incomplete'}
             {edits.checkedAt ? ` · checked ${edits.checkedAt}` : ''} · after: {edits.trigger}
           </p>
           {rerunNote && <p className="m-0 rounded-lg bg-good-bg px-3 py-2 text-[13px] text-good">{rerunNote}</p>}
@@ -172,7 +175,7 @@ export default function DashboardPage() {
         ))}
         {savings.map((a) => (
           <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
-            sub={setAside > 0 ? `${money0(setAside)} set aside · ${money0(freeSavings(picture))} free` : 'Nothing set aside yet'} />
+            sub={`${money0(picture.goals.filter((g) => g.accountId === a.id).reduce((s, g) => s + g.amount, 0))} set aside · ${money0(freeSavings(picture, a.id))} free`} />
         ))}
         {cards.map((a) => (
           <SmallCard key={a.id} label={a.nickname} value={money(a.balance)}
@@ -197,7 +200,7 @@ export default function DashboardPage() {
             <h2 className="m-0 text-xl">Next 30 days in checking</h2>
             <span className="text-[13px] text-muted">paychecks minus bills</span>
           </div>
-          <ForecastChart points={result.forecast} />
+          {checking.map((a) => <div key={a.id}><h3 className="text-sm">{a.nickname}</h3><ForecastChart points={result.accountForecasts[a.id] ?? []} /></div>)}
         </Card>
         <Card label="Bills and subscriptions" className="min-w-0 flex-[1_1_420px]">
           <ObligationsList obligations={picture.obligations} onToggle={toggleTag} />

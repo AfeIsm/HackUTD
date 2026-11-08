@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { Status } from '@/lib/types';
 
 export const TONE: Record<Status, { label: string; pill: string; ring: string; bar: string; tint: string }> = {
+  needsInput: { label: 'Needs input', pill: 'bg-soft text-muted', ring: '#64748B', bar: 'bg-soft', tint: 'bg-soft' },
   green: { label: 'Healthy', pill: 'bg-good-bg text-good', ring: '#1E8E4E', bar: 'bg-good-ring', tint: 'bg-[#F1FAF4]' },
   yellow: { label: 'Watch', pill: 'bg-warn-bg text-warn', ring: '#D48A0C', bar: 'bg-warn-ring', tint: 'bg-[#FEF8EC]' },
   red: { label: 'At risk', pill: 'bg-bad-bg text-bad', ring: '#D2382E', bar: 'bg-bad-ring', tint: 'bg-[#FDF2F1]' },

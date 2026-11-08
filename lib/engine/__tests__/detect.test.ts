@@ -6,7 +6,7 @@ import { detectPaychecks, detectRecurring } from '../detect';
 let nextId = 0;
 function txn(fields: Omit<Txn, 'id' | 'accountId'>): Txn {
   nextId += 1;
-  return { id: `t${String(nextId).padStart(3, '0')}`, accountId: 'alex-checking', ...fields };
+  return { id: `t${String(nextId).padStart(3, '0')}`, accountId: 'alex-checking', ...fields, amount: Math.round(fields.amount * 100) };
 }
 
 const pay = (date: string, amount = 1850) =>
@@ -30,7 +30,7 @@ const alex: Txn[] = [
 
 describe('detectPaychecks', () => {
   it('finds Alex’s biweekly $1,850 paycheck and the next payday', () => {
-    expect(detectPaychecks(alex)).toEqual({ avgAmount: 1850, cadenceDays: 14, nextDate: '2026-11-13' });
+    expect(detectPaychecks(alex)).toEqual({ accountId: 'alex-checking', avgAmount: 185000, cadenceDays: 14, nextDate: '2026-11-13' });
   });
 
   it('rolls nextDate forward past asOf', () => {
@@ -65,7 +65,7 @@ describe('detectRecurring', () => {
   });
 
   it('gets amount, cadence and next date right', () => {
-    expect(byName('Netflix')).toMatchObject({ amount: 15.49, cadence: 'monthly', nextDate: '2026-11-14', origin: 'detected' });
+    expect(byName('Netflix')).toMatchObject({ amount: 1549, cadence: 'monthly', nextDate: '2026-11-14', origin: 'detected' });
   });
 
   it('tags the phone bill essential and streaming non-essential', () => {

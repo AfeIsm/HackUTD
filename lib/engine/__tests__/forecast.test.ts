@@ -1,95 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import type { FinancialPicture, Obligation } from '../../types';
 import { forecastBalance } from '../forecast';
+import { ASOF, alex } from './fixtures';
+const at = (p: { date: string; balance: number }[], d: string) => p.find((x) => x.date === d)?.balance;
 
-const ob = (key: string, name: string, amount: number, nextDate: string, essential: boolean): Obligation => ({
-  key, name, amount, nextDate, cadence: 'monthly', essential, origin: essential ? 'bill' : 'detected',
-});
-
-// Alex on Sat Nov 7, 2026 (same numbers as the mockup)
-const alex: FinancialPicture = {
-  memberId: 'alex',
-  accounts: [
-    { id: 'a1', type: 'Checking', nickname: 'Checking', balance: 386.4 },
-    { id: 'a2', type: 'Savings', nickname: 'Savings', balance: 900 },
-    { id: 'a3', type: 'Credit Card', nickname: 'Card', balance: 900, limit: 2000 },
-  ],
-  txns: [],
-  paycheck: { avgAmount: 1850, cadenceDays: 14, nextDate: '2026-11-13' },
-  goals: [{ id: 'g1', name: 'Orlando fund', amount: 300 }],
-  obligations: [
-    ob('bill:b2', 'Electric', 120, '2026-11-10', true),
-    ob('bill:b3', 'Car insurance', 95, '2026-11-12', true),
-    ob('bill:b4', 'T-Mobile USA', 65, '2026-11-12', true),
-    ob('detected:netflix', 'Netflix', 15.49, '2026-11-14', false),
-    ob('detected:spotify', 'Spotify', 11.99, '2026-11-16', false),
-    ob('loan:l1', 'Car loan', 310, '2026-11-20', true),
-    ob('detected:hulu', 'Hulu', 17.99, '2026-11-21', false),
-    ob('detected:planet-fitness', 'Planet Fitness', 40, '2026-11-28', false),
-    ob('bill:b1', 'Rent', 1200, '2026-12-01', true),
-  ],
-};
-const asOf = '2026-11-07';
-const at = (pts: { date: string; balance: number }[], date: string) => pts.find((p) => p.date === date)?.balance;
-
-describe('forecastBalance', () => {
-  const all = forecastBalance(alex, { asOf });
-  const essential = forecastBalance(alex, { asOf, essentialOnly: true });
-
-  it('has one point per day for 30 days', () => {
-    expect(all.checking).toHaveLength(31);
-    expect(all.checking[0]).toEqual({ date: '2026-11-07', balance: 386.4 });
-    expect(all.checking[30].date).toBe('2026-12-07');
+describe('account-specific forecasts', () => {
+  const base = forecastBalance(alex, { asOf: ASOF });
+  it('starts from current balances without replaying historical transactions', () => {
+    expect(base.byAccount.a1[0].balance).toBe(38640);
+    const p = { ...alex, txns: [{ id: 'old', accountId: 'a1', kind: 'purchase' as const, amount: 10000, date: '2026-10-01', description: 'Past' }] };
+    expect(forecastBalance(p, { asOf: ASOF })).toEqual(base);
   });
-
-  it('finds the lowest point: $106.40 on Nov 12, the day before payday', () => {
-    expect(essential.lowest).toEqual({ date: '2026-11-12', balance: 106.4 });
+  it('adds pay only to its receiving account', () => {
+    const p = { ...alex, accounts: [...alex.accounts, { ...alex.accounts[0], id: 'second', balance: 0 }] };
+    const f = forecastBalance(p, { asOf: ASOF });
+    expect(at(f.byAccount.a1, '2026-11-13')).toBe(195640);
+    expect(at(f.byAccount.second, '2026-11-13')).toBe(0);
   });
-
-  it('adds the paycheck on payday', () => {
-    expect(at(all.checking, '2026-11-13')).toBe(1956.4);
+  it('purchase from a goal reduces savings and does not create a transfer back into savings', () => {
+    const f = forecastBalance(alex, { asOf: ASOF, changes: [{ kind: 'oneTime', sourceAccountId: 'a2', goalId: 'orlando', amount: 18000, label: 'Tickets' }] });
+    expect(f.byAccount.a2[0].balance).toBe(72000);
+    expect(f.byAccount.a1).toEqual(base.byAccount.a1);
   });
-
-  it('counts subscriptions only when not essentialOnly', () => {
-    expect(at(all.checking, '2026-12-07')).toBe(2210.93);
-    expect(at(essential.checking, '2026-12-07')).toBe(2296.4);
+  it('an explicit internal transfer has both effects and creates no income', () => {
+    const f = forecastBalance(alex, { asOf: ASOF, changes: [{ kind: 'oneTime', sourceAccountId: 'a1', destinationAccountId: 'a2', amount: 1000, label: 'Save' }] });
+    expect(f.byAccount.a1[0].balance).toBe(37640);
+    expect(f.byAccount.a2[0].balance).toBe(91000);
+    expect(f.checking[0].balance + f.savings[0].balance).toBe(base.checking[0].balance + base.savings[0].balance);
   });
-
-  it('a $900 purchase today sends checking to -$793.60 on Nov 12', () => {
-    const f = forecastBalance(alex, { asOf, essentialOnly: true, changes: [{ kind: 'oneTime', amount: 900, label: 'PS6' }] });
-    expect(f.lowest).toEqual({ date: '2026-11-12', balance: -793.6 });
+  it('weekly and monthly changes use exact accounts and cents', () => {
+    const f = forecastBalance(alex, { asOf: ASOF, changes: [{ kind: 'weekly', sourceAccountId: 'a1', destinationAccountId: 'a2', amount: 4500, label: 'Save' }] });
+    expect(f.savings.at(-1)!.balance).toBe(108000);
+    expect(f.checking.at(-1)!.balance).toBe(base.checking.at(-1)!.balance - 18000);
+    expect(f.checking.every((p) => Number.isSafeInteger(p.balance))).toBe(true);
   });
-
-  it('a purchase from savings lowers savings, not checking', () => {
-    const f = forecastBalance(alex, { asOf, changes: [{ kind: 'oneTime', amount: 180, source: 'savings', label: 'Best Buy' }] });
-    expect(at(f.savings, '2026-12-07')).toBe(720);
-    expect(f.checking).toEqual(all.checking);
+  it('scheduled cancellations preserve expenses until their effective date', () => {
+    const f = forecastBalance(alex, { asOf: ASOF, changes: [{ kind: 'cancelObligation', obligationKey: 'detected:hulu', date: '2026-12-01', amount: 0, label: 'Cancel' }] });
+    expect(f.checking).toEqual(base.checking);
   });
-
-  it('weekly saving into a goal moves money from checking to savings', () => {
-    const f = forecastBalance(alex, { asOf, changes: [{ kind: 'weekly', amount: 45, goalId: 'ps6', label: 'PS6 fund' }] });
-    // Nov 14, 21, 28, Dec 5 → 4 × $45
-    expect(at(f.savings, '2026-12-07')).toBe(1080);
-    expect(at(f.checking, '2026-12-07')).toBe(round2(2210.93 - 180));
-    expect(f.lowest.balance).toBe(106.4); // first transfer is after the Nov 12 low
+  it('monthly schedules recover the 31st after February', () => {
+    const p = { ...alex, paycheck: null, reservations: [], obligations: [{ ...alex.obligations[0], amount: 100, nextDate: '2027-01-31' }] };
+    const f = forecastBalance(p, { asOf: '2027-01-30', days: 61 });
+    expect(at(f.byAccount.a1, '2027-03-30')).toBe(38440);
+    expect(at(f.byAccount.a1, '2027-03-31')).toBe(38340);
   });
-
-  it('cancelling a subscription keeps that money', () => {
-    const f = forecastBalance(alex, { asOf, changes: [{ kind: 'cancelObligation', amount: 0, obligationKey: 'detected:hulu', label: 'Cancel Hulu' }] });
-    expect(at(f.checking, '2026-12-07')).toBe(round2(2210.93 + 17.99));
+  it('semi-monthly income uses calendar days across February', () => {
+    const p = { ...alex, obligations: [], paycheck: { accountId: 'a1', avgAmount: 100, cadenceDays: 15, semiMonthlyDays: [15, 31] as [number, number], nextDate: '2027-02-15' } };
+    const f = forecastBalance(p, { asOf: '2027-02-01', days: 45 });
+    expect(at(f.byAccount.a1, '2027-02-28')).toBe(38840);
+    expect(at(f.byAccount.a1, '2027-03-14')).toBe(38840);
+    expect(at(f.byAccount.a1, '2027-03-15')).toBe(38940);
   });
-
-  it('rolls stale due dates forward', () => {
-    const stale = { ...alex, obligations: [ob('bill:x', 'Old bill', 50, '2026-09-10', true)], paycheck: null };
-    const f = forecastBalance(stale, { asOf });
-    expect(at(f.checking, '2026-11-10')).toBe(336.4); // Sep 10 → Oct 10 → Nov 10
-  });
-
-  it('is deterministic', () => {
-    expect(forecastBalance(alex, { asOf })).toEqual(all);
+  it('an old reservation is retained as an immediate outflow', () => {
+    const f = forecastBalance({ ...alex, reservations: [{ id: 'r', sourceAccountId: 'a1', amount: 101, date: '2026-11-01' }] }, { asOf: ASOF });
+    expect(f.byAccount.a1[0].balance).toBe(38539);
   });
 });
-
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}

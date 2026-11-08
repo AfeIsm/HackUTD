@@ -7,7 +7,7 @@ Huddle brings a person's financial picture into one place, evaluates upcoming ob
 
 Built for HackUTD 2026 with Capital One's Nessie banking sandbox, NVIDIA Nemotron, and MongoDB Atlas.
 
-> **Project status — implementation specification.** This README describes the intended application and its acceptance criteria. Features are planned until verified in the running app. The local planning workspace currently has no application scaffold or package scripts. Setup commands below describe the interface the implementation should provide.
+> **Project status — application scaffold and prototype implemented.** The repository contains a Next.js App Router application, React/Tailwind screens for My Money, purchase simulations, households, friends and Huddles, a pure financial engine with regression tests, and Nessie seed/normalization support. Financial contracts use integer cents and exact owned source accounts; goals, obligations, income and reservations are account-linked. Missing required inputs block approval, and purchase “Yes” requires a complete green result. The dashboard and Huddle workflow still keep edits in browser memory. MongoDB persistence, Nemotron tool execution, permission-enforced household sharing, separate yellow-pledge acknowledgement and provider-confirmed funding remain planned. Live Nessie behavior and deployment must be verified separately; implemented screens are not evidence of completed integrations.
 
 ## The problem
 
@@ -346,6 +346,19 @@ lib/agent/               model client, tool schemas, loop and prompts
 
 `lib/engine/` accepts input and returns results without network or database calls. Route handlers and agent tools use the same services. Cache the Mongo client per runtime instance and keep deployment connection handling explicit.
 
+## Implemented financial contract (local prototype)
+
+- All normalized monetary fields (`balance`, `amount`, `monthlyPayment`, `avgAmount`, limits and allocations) are safe integer **cents**. Nessie dollar values and dollar form input are converted at the boundary; display formatting converts cents back to dollars.
+- Every account has an `ownerMemberId`. Monetary scenarios and pledges require `sourceAccountId`; obligations, goals and paychecks require `accountId`. Credit cards remain liabilities and are not accepted as cash source accounts.
+- Forecasts retain one series per account. Aggregate charts are informational; a well-funded second account cannot cover a shortfall in the selected account without an explicit transfer. Every scheduled outflow and reservation is included in health coverage.
+- A matching goal purchase consumes that goal allocation and debits savings once. Internal saving transfers require a separate destination account; a goal purchase never credits the same money back to savings. Recorded purchases retain the exact amount covered by an earmark, so any excess still counts as unallocated-savings spending.
+- Missing income, card payment metadata, account links, invalid amounts or overallocated goals produce actionable `missingInputs` and an incomplete score (`null`). Required indicator inputs use `needsInput`; known essential-bill failure still overrides the overall result to red.
+- Synthetic card limits, minimum payments, repayment accounts and due dates are explicit demo metadata in `lib/people.ts`. They apply only to their named seeded account IDs. If reseeding changes IDs, update this metadata rather than guessing an account or a minimum.
+- Savings-protection usage uses a fixed pre-scenario baseline: current savings plus unallocated savings withdrawals in the preceding 30 days. A matching goal spend does not count as emergency-cushion use. The configured status thresholds determine its effect.
+- Monthly forecasts preserve the original day through short months. Semi-monthly income uses two calendar days, distinct from a 14-day biweekly schedule; ambiguous day patterns require confirmation. Pending or unknown transaction settlement is surfaced as incomplete input rather than replayed into a confirmed balance.
+- “Yes” requires a complete green result and sufficient money in the exact source account. “Yes, if…” is shown only for a recomputed same-account payday alternative. The prototype supports a bounded forecast of at most 365 days and does not claim unverified long-term savings plans.
+- Pledge checks evaluate immediate funding, including existing reservations, rather than counting future pay before the event. Yellow remains blocked until the separate acknowledgement workflow is implemented. Huddle persistence, reservation-ledger concurrency and funding reconciliation are still P1 work; a locally locked plan does not transfer money.
+
 ## Persistent state
 
 Store external provider IDs alongside Huddle-owned identifiers. Keep secret credentials outside stored user-facing records.
@@ -401,7 +414,7 @@ The main demonstration should show personal assessment, one purchase simulation,
 
 ## Local setup contract
 
-The following is the planned setup once the application scaffold and scripts exist.
+The application scaffold and scripts now exist. Install dependencies and start the app with `npm install` and `npm run dev`. The seed script supports the synthetic demo data; review its mode and provider configuration before running it. The sequence below includes seeding:
 
 ```bash
 git clone https://github.com/AfeIsm/HackUTD.git
@@ -425,9 +438,9 @@ MONGODB_DB=huddle
 USE_LOCAL_DATA=false
 ```
 
-Create `.env.example` with blank secrets when scaffolding. Keep actual values in `.env.local` and the hosting environment. Configure Atlas connectivity for the deployed app using the deployment's documented network-access options.
+The scaffold includes `.env.example`; keep secret placeholders blank. Keep actual values in `.env.local` and the hosting environment. Configure Atlas connectivity for the deployed app using the deployment's documented network-access options.
 
-Provide scripts for development, production build, start, seed, engine/workflow tests and the scaffold's lint/type checks. Pin package versions in the npm lockfile. Confirm service access and event credit limits with the team's own accounts.
+Current scripts provide development, production build, start, seed, tests and lint. Run `npx tsc --noEmit` for the type check. Pin package versions in the npm lockfile. Confirm service access and event credit limits with the team's own accounts.
 
 In fixture mode, show a visible data-mode badge and track simulated writes locally. Explicitly choose the mode at startup. Restore live mode and demonstrate a real supported Nessie operation before claiming live-provider integration in the entry.
 

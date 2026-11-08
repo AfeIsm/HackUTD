@@ -1,106 +1,74 @@
-// forecastBalance: project checking and savings day by day.
-// + paychecks, − bills/loans/subscriptions, ± hypothetical changes (what-ifs).
-// Pure function: `asOf` (today) is passed in, so the same inputs always give the same forecast.
-
-import type { Change, FinancialPicture, ForecastPoint, Obligation, Source } from '../types';
-import { addDays, addMonths } from './dates';
+import type { Change, FinancialPicture, ForecastPoint } from '../types';
+import { addDays, addMonths, nextSemiMonthly } from './dates';
+import { validDate } from './validation';
 
 export interface ForecastOptions {
-  asOf: string; // YYYY-MM-DD, "today"
-  days?: number; // default 30
-  changes?: Change[];
-  essentialOnly?: boolean; // only essential obligations (for the "Essential bills covered" indicator)
+  asOf: string; days?: number; changes?: Change[];
+  essentialOnly?: boolean; // analysis only; health and approval always include ALL scheduled outflows
 }
-
 export interface Forecast {
-  checking: ForecastPoint[]; // one point per day, asOf … asOf+days
-  savings: ForecastPoint[];
-  lowest: ForecastPoint; // lowest checking balance (earliest date on a tie)
+  checking: ForecastPoint[]; savings: ForecastPoint[];
+  byAccount: Record<string, ForecastPoint[]>;
+  lowest: ForecastPoint;
+  lowestByAccount: Record<string, ForecastPoint>;
 }
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function stepFor(cadence: Obligation['cadence']): (d: string) => string {
-  if (cadence === 'weekly') return (d) => addDays(d, 7);
-  if (cadence === 'biweekly') return (d) => addDays(d, 14);
-  return (d) => addMonths(d, 1);
-}
-
-export function forecastBalance(picture: FinancialPicture, opts: ForecastOptions): Forecast {
+export function forecastBalance(p: FinancialPicture, opts: ForecastOptions): Forecast {
   const { asOf, days = 30, changes = [], essentialOnly = false } = opts;
+  if (!validDate(asOf) || !Number.isInteger(days) || days < 0 || days > 365) throw new Error('Invalid forecast interval');
   const end = addDays(asOf, days);
-
-  // Money moving on each date, per account
-  const flows = new Map<string, Record<Source, number>>();
-  const add = (date: string, account: Source, amount: number) => {
-    if (date < asOf || date > end) return;
-    const day = flows.get(date) ?? { checking: 0, savings: 0 };
-    day[account] += amount;
-    flows.set(date, day);
+  const accounts = p.accounts.filter((a) => a.ownerMemberId === p.memberId && a.type !== 'Credit Card');
+  const flows = new Map<string, Map<string, number>>();
+  const add = (date: string, id: string, amount: number) => {
+    if (date < asOf || date > end || !accounts.some((a) => a.id === id) || !Number.isSafeInteger(amount)) return;
+    const day = flows.get(date) ?? new Map<string, number>();
+    day.set(id, (day.get(id) ?? 0) + amount); flows.set(date, day);
   };
-
-  // Every occurrence from `start` (rolled forward past stale dates) up to the end of the window
-  const each = (start: string, step: (d: string) => string, fn: (d: string) => void) => {
+  const each = (start: string, cadence: number, fn: (d: string) => void, semi?: [number, number]) => {
+    if (!validDate(start) || ![7, 14, 15, 30].includes(cadence)) return;
     let d = start;
-    while (d < asOf) d = step(d);
-    while (d <= end) {
-      fn(d);
-      d = step(d);
+    for (let n = 0; d <= end && n < 2000; n++) {
+      if (d >= asOf) fn(d);
+      d = cadence === 30 ? addMonths(start, n + 1) : cadence === 15 && semi ? nextSemiMonthly(d, semi) : addDays(d, cadence);
     }
   };
-
-  // Paychecks → checking
-  const pay = picture.paycheck;
-  if (pay) {
-    const step = pay.cadenceDays === 30 ? (d: string) => addMonths(d, 1) : (d: string) => addDays(d, pay.cadenceDays);
-    each(pay.nextDate, step, (d) => add(d, 'checking', pay.avgAmount));
-  }
-
-  // Obligations → out of checking (unless cancelled by a what-if)
-  const cancelledFrom = new Map<string, string>();
-  for (const c of changes) {
-    if (c.kind === 'cancelObligation' && c.obligationKey) cancelledFrom.set(c.obligationKey, c.date ?? asOf);
-  }
-  for (const o of picture.obligations) {
+  if (p.paycheck) each(p.paycheck.nextDate, p.paycheck.cadenceDays, (d) => add(d, p.paycheck!.accountId, p.paycheck!.avgAmount), p.paycheck.semiMonthlyDays);
+  for (const o of p.obligations) {
     if (essentialOnly && !o.essential) continue;
-    const stopAt = cancelledFrom.get(o.key);
-    each(o.nextDate, stepFor(o.cadence), (d) => {
-      if (stopAt === undefined || d < stopAt) add(d, 'checking', -o.amount);
+    const stops = changes.filter((c) => c.kind === 'cancelObligation' && c.obligationKey === o.key).map((c) => c.date ?? asOf).sort();
+    each(o.nextDate, o.cadence === 'weekly' ? 7 : o.cadence === 'biweekly' ? 14 : 30, (d) => {
+      if (!stops.length || d < stops[0]) add(d, o.accountId, -o.amount);
     });
   }
-
-  // What-if changes: money leaves `source`; with a goal it lands in savings instead of being spent
-  const move = (c: Change, date: string) => {
-    add(date, c.source ?? 'checking', -c.amount);
-    if (c.goalId) add(date, 'savings', c.amount);
-  };
+  // A reservation is an outflow exactly once, not an additional savings allocation.
+  for (const r of p.reservations) add(r.date < asOf ? asOf : r.date, r.sourceAccountId, -r.amount);
   for (const c of changes) {
-    if (c.kind === 'oneTime') move(c, c.date ?? asOf);
-    if (c.kind === 'weekly') each(c.date ?? addDays(asOf, 7), (d) => addDays(d, 7), (d) => move(c, d));
-    if (c.kind === 'monthly') each(c.date ?? addMonths(asOf, 1), (d) => addMonths(d, 1), (d) => move(c, d));
+    if (c.kind === 'cancelObligation' || !c.sourceAccountId) continue;
+    const move = (d: string) => {
+      add(d, c.sourceAccountId!, -c.amount);
+      if (c.destinationAccountId) add(d, c.destinationAccountId, c.amount);
+    };
+    if (c.kind === 'oneTime') move(c.date ?? asOf);
+    else each(c.date ?? (c.kind === 'weekly' ? addDays(asOf, 7) : addMonths(asOf, 1)), c.kind === 'weekly' ? 7 : 30, move);
   }
-
-  // Walk day by day
-  let checking = picture.accounts.filter((a) => a.type === 'Checking').reduce((s, a) => s + a.balance, 0);
-  let savings = picture.accounts.filter((a) => a.type === 'Savings').reduce((s, a) => s + a.balance, 0);
-  const checkingPts: ForecastPoint[] = [];
-  const savingsPts: ForecastPoint[] = [];
-  let lowest: ForecastPoint | null = null;
-
+  const byAccount: Record<string, ForecastPoint[]> = Object.fromEntries(accounts.map((a) => [a.id, []]));
+  const balances = new Map(accounts.map((a) => [a.id, a.balance]));
+  const checking: ForecastPoint[] = [], savings: ForecastPoint[] = [];
+  const lowestByAccount: Record<string, ForecastPoint> = {};
   for (let i = 0; i <= days; i++) {
     const date = addDays(asOf, i);
-    const f = flows.get(date);
-    if (f) {
-      checking += f.checking;
-      savings += f.savings;
+    let checkingTotal = 0, savingsTotal = 0;
+    for (const a of accounts) {
+      const balance = balances.get(a.id)! + (flows.get(date)?.get(a.id) ?? 0);
+      balances.set(a.id, balance);
+      const point = { date, balance };
+      byAccount[a.id].push(point);
+      if (!lowestByAccount[a.id] || balance < lowestByAccount[a.id].balance) lowestByAccount[a.id] = point;
+      if (a.type === 'Checking') checkingTotal += balance; else savingsTotal += balance;
     }
-    const point = { date, balance: round2(checking) };
-    checkingPts.push(point);
-    savingsPts.push({ date, balance: round2(savings) });
-    if (!lowest || point.balance < lowest.balance) lowest = point;
+    checking.push({ date, balance: checkingTotal }); savings.push({ date, balance: savingsTotal });
   }
-
-  return { checking: checkingPts, savings: savingsPts, lowest: lowest as ForecastPoint };
+  // A rich second account must never conceal a shortfall in the account paying a bill.
+  const lows = accounts.filter((a) => a.type === 'Checking').map((a) => lowestByAccount[a.id]);
+  const lowest = lows.reduce((a, b) => b.balance < a.balance || (b.balance === a.balance && b.date < a.date) ? b : a, lows[0] ?? { date: asOf, balance: 0 });
+  return { checking, savings, byAccount, lowest, lowestByAccount };
 }

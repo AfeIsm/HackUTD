@@ -7,8 +7,8 @@ const H = 200;
 export function ForecastChart({ points }: { points: ForecastPoint[] }) {
   if (points.length < 2) return null;
   const values = points.map((p) => p.balance);
-  const max = Math.max(...values, 400);
-  const min = Math.min(...values, -100);
+  const max = Math.max(...values, 40000);
+  const min = Math.min(...values, -10000);
   const y = (v: number) => Math.round(10 + ((max - v) / (max - min)) * 180);
   const x = (i: number) => Math.round((i / (points.length - 1)) * W);
 
@@ -28,7 +28,7 @@ export function ForecastChart({ points }: { points: ForecastPoint[] }) {
         viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img"
         aria-label={`Projected checking balance over ${points.length - 1} days. Lowest ${money(low.balance)} on ${shortDate(low.date)}.`}
       >
-        <line x1="0" x2={W} y1={y(200)} y2={y(200)} stroke="#D48A0C" strokeWidth="1.5" strokeDasharray="6 5" />
+        <line x1="0" x2={W} y1={y(20000)} y2={y(20000)} stroke="#D48A0C" strokeWidth="1.5" strokeDasharray="6 5" />
         <line x1="0" x2={W} y1={y(0)} y2={y(0)} stroke="#B4231B" strokeWidth="1.5" />
         <polyline points={path.join(' ')} fill="none" stroke="#1F4FD8" strokeWidth="2.5" strokeLinejoin="round" />
         <circle cx={x(lowIndex)} cy={y(low.balance)} r="5" fill="#1F4FD8" />
