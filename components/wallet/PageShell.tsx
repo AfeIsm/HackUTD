@@ -6,8 +6,8 @@ import { CardFace } from './CardFace';
 import { type CardId } from './cards';
 import { useWallet } from './WalletContext';
 
-export function PageShell({ id, eyebrow, title, intro, actions, children }: {
-  id: CardId; eyebrow?: string; title: ReactNode; intro?: ReactNode; actions?: ReactNode; children: ReactNode;
+export function PageShell({ id, eyebrow, title, intro, actions, children, showDemoNotice = true }: {
+  id: CardId; eyebrow?: string; title: ReactNode; intro?: ReactNode; actions?: ReactNode; children: ReactNode; showDemoNotice?: boolean;
 }) {
   const w = useWallet();
   const me = useMe();
@@ -27,7 +27,7 @@ export function PageShell({ id, eyebrow, title, intro, actions, children }: {
           </div>
         </header>
         <div className="page-body">
-          {me.status === 'in' && me.user.memberId?.startsWith('user-') && <p className="text-xs text-muted">Demo finances · synthetic Nessie banking data · assessment date November 7, 2026</p>}
+          {showDemoNotice && me.status === 'in' && me.user.memberId?.startsWith('user-') && <p className="text-xs text-muted">Demo finances · synthetic Nessie banking data · assessment date November 7, 2026</p>}
           {children}
         </div>
       </article>

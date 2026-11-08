@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import type { HealthResult } from '@/lib/types';
 import { Avatar, StatusPill } from './ui';
 
@@ -13,14 +13,14 @@ export interface FamilySlide {
   result: Pick<HealthResult, 'score' | 'overall'> | null;
   loading: boolean;
   summary: string;
-  facts: { k: string; v: string }[];
+  facts: { k: string; v: ReactNode }[];
   details?: ReactNode;
 }
 
 /** The wallet's household overview only receives consent-filtered member data. */
 export function FamilyCarousel({ slides, unavailable = false }: { slides: FamilySlide[]; unavailable?: boolean }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
   const detailId = useId();
   if (!slides.length) return <section className="household-overview"><p className="text-muted" aria-live="polite">
     {unavailable ? 'Shared household details are unavailable. Refresh sharing to try again.' : 'Loading household members…'}
@@ -29,7 +29,7 @@ export function FamilyCarousel({ slides, unavailable = false }: { slides: Family
   const current = slides[selected];
   const choose = (index: number) => {
     setSelectedId(slides[(index + slides.length) % slides.length].id);
-    setExpandedId(null);
+    dialog.current?.close();
   };
 
   return (
@@ -64,15 +64,20 @@ export function FamilyCarousel({ slides, unavailable = false }: { slides: Family
             <dt>{fact.k}</dt><dd className="font-semibold tabular-nums">{fact.v}</dd>
           </div>)}
         </dl>}
-        {current.details && <button type="button" className="mt-5 min-h-11 text-sm font-semibold underline underline-offset-4"
-          aria-expanded={expandedId === current.id} aria-controls={detailId}
-          onClick={() => setExpandedId(expandedId === current.id ? null : current.id)}>
-          {expandedId === current.id ? 'Hide details' : 'View all shared details'}
+        {current.details && <button type="button" className="mt-5 flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-line px-3 text-sm font-semibold hover:bg-soft"
+          aria-haspopup="dialog" aria-controls={detailId} onClick={() => dialog.current?.showModal()}>
+          View shared details <span aria-hidden="true">↗</span>
         </button>}
-        <div id={detailId} hidden={expandedId !== current.id} className="mt-4 min-w-0">
-          {expandedId === current.id ? current.details : null}
-        </div>
       </div>
+      <dialog ref={dialog} id={detailId} aria-label={`${current.name} shared details`}
+        className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-[540px] overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+        onClick={(event) => { if (event.target === dialog.current) { const bounds = dialog.current.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.current.close(); } }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3">
+          <span className="font-semibold">Shared details</span>
+          <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-soft" aria-label="Close shared details" onClick={() => dialog.current?.close()}>×</button>
+        </div>
+        {current.details}
+      </dialog>
       <div className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="Choose a family member">
         {slides.map((slide, index) => <button key={slide.id} type="button"
           className={`member-tab ${index === selected ? 'is-active' : ''}`} aria-pressed={index === selected} onClick={() => choose(index)}>
