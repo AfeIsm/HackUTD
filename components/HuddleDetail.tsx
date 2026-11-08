@@ -14,11 +14,12 @@ import { fundingOptions } from '@/lib/fundingOptions';
 import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
 import { DEMO_ASOF, lookOf } from '@/lib/people';
-import { usePicture } from '@/lib/usePicture';
+import { invalidatePicture, usePicture } from '@/lib/usePicture';
 import { huddleAction, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
 import { PledgeCoach } from './PledgeCoach';
 import { PurchasePanel } from './PurchasePanel';
+import { TransferNow } from './TransferNow';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
@@ -66,6 +67,7 @@ export function HuddleDetail({ id }: { id: string }) {
     setBusy(true);
     const result = await huddleAction(h.id, body);
     setError(result.error);
+    if (!result.error && body.action === 'transferNow') invalidatePicture(viewerId); // show the new balance everywhere
     if (!result.error && (body.action === 'leave' || body.action === 'delete' ||
       (body.action === 'requestChanges' && body.reason === 'out') ||
       (body.action === 'answerInvite' && body.accept === false))) router.replace('/huddles');
@@ -147,7 +149,9 @@ export function HuddleDetail({ id }: { id: string }) {
               done={short === 0}
               note={
                 h.phase === 'locked'
-                  ? 'Plan locked. Everyone’s amount is saved as a promise. No money has moved.'
+                  ? h.transferredTotal > 0
+                    ? `Plan locked. ${money0(h.transferredTotal)} has been transferred so far. The rest is saved as promises.`
+                    : 'Plan locked. Everyone’s amount is saved as a promise. No money has moved.'
                   : h.phase === 'cancelled'
                     ? 'This huddle was cancelled.'
                     : short > 0
@@ -206,7 +210,7 @@ export function HuddleDetail({ id }: { id: string }) {
                 <div key={p.memberId} className="flex justify-between gap-3 py-1 text-sm">
                   <span>{p.name}</span>
                   <span className="font-semibold">
-                    {money0(p.pledge ?? 0)} · <span className="text-muted">Promised</span>
+                    {money0(p.pledge ?? 0)} · <span className={p.transferred ? 'text-good' : 'text-muted'}>{p.transferred ? 'Transferred' : 'Promised'}</span>
                   </span>
                 </div>
               ))}
@@ -255,8 +259,11 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       <div className="flex flex-col gap-2.5">
         <h2 className="m-0 text-[22px]">Locked</h2>
         <p className="m-0 leading-relaxed text-ink-2">
-          You’ve promised {money0(mine.pledge ?? 0)} from {sourceText} to {h.name}. No money has moved, so you can still spend it. We’ll warn you if that puts this promise at risk.
+          {mine.transfer?.status === 'sent'
+            ? `Your part of ${h.name} is done.`
+            : `You’ve promised ${money0(mine.pledge ?? 0)} from ${sourceText} to ${h.name}. No money has moved, so you can still spend it. We’ll warn you if that puts this promise at risk.`}
         </p>
+        {mine.pledge ? <TransferNow mine={mine} huddleName={h.name} sourceText={sourceText} busy={busy} onTransfer={() => run({ action: 'transferNow' })} /> : null}
       </div>
     );
   }

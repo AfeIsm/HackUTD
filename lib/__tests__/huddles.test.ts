@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { checkPledge } from '../engine/split';
 import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor, withOtherPledges } from '../huddles';
 import { ASOF, alex } from '../engine/__tests__/fixtures';
+import { applyAppChanges } from '../services/picture';
 
 const huddle = (participants = [newParticipant('alex', 'u1', 'Alex')], totalCost = 100): Huddle => ({
   id: 'h1', name: 'Test', totalCost, targetDate: '2027-03-20', createdBy: 'alex', phase: 'pledging', round: 1,
@@ -48,6 +49,33 @@ describe('Huddle phase machine + privacy filter', () => {
       expect(rich.accounts.find((a) => a.id === 'a1')?.balance).toBe(80000);
       expect(r.passed).toBe(false);
       expect(r.reason).toBe('Only $200 of Checking is free. The rest is already promised to your other huddles.');
+    });
+    it('money already transferred is not counted a second time', () => {
+      const sent = other();
+      sent.participants[0] = { ...sent.participants[0], transfer: { status: 'sent' } };
+      expect(after(sent).reservations).toEqual([]);
+    });
+    it('the group can see who transferred, but not the bank details', () => {
+      const sent = other({ phase: 'locked' });
+      sent.participants[0] = { ...sent.participants[0], transfer: { status: 'sent', recordId: 'secret-record' } };
+      const v = viewFor(sent, 'sam');
+      expect(v.participants.find((p) => p.memberId === 'alex')?.transferred).toBe(true);
+      expect(v.transferredTotal).toBe(60000);
+      expect(JSON.stringify(v)).not.toContain('secret-record');
+    });
+    it('a sent transfer lowers the balance once, on the right account', () => {
+      const p = applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 25000, sourceAccountId: 'a1' }]);
+      expect(p.accounts.find((a) => a.id === 'a1')?.balance).toBe(55000);
+      expect(p.accounts.find((a) => a.id === 'a2')?.balance).toBe(rich.accounts.find((a) => a.id === 'a2')?.balance);
+      expect(p.txns.filter((t) => t.id === 'huddle-transfer-h1')).toHaveLength(1);
+      expect(p.txns.find((t) => t.id === 'huddle-transfer-h1')?.kind).toBe('transfer');
+    });
+    it('a transfer from a goal uses up that goal', () => {
+      const p = applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 10000, sourceAccountId: 'a2', goalId: 'orlando' }]);
+      expect(p.goals.find((g) => g.id === 'orlando')?.amount).toBe(20000);
+    });
+    it('a transfer from an account that no longer exists is ignored', () => {
+      expect(applyAppChanges(rich, [], [], [], [], [{ huddleId: 'h1', name: 'Trip', amount: 100, sourceAccountId: 'old' }]).accounts).toEqual(rich.accounts);
     });
     it('still allows what is left', () => {
       expect(checkPledge(after(other()), { amount: 10000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(true);

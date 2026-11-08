@@ -46,8 +46,9 @@ export async function POST(request: NextRequest) {
   if (check.move) {
     try {
       const res = await nessieRequest<{ objectCreated?: { _id: string } }>(`/accounts/${check.move.fromAccountId}/transfers`, {
-        medium: 'balance', payee_id: check.move.toAccountId, amount: check.move.amount / 100,
-        transaction_date: DEMO_ASOF, status: 'completed', description: 'Wallet Whisperer plan: cover the bills dip',
+        // These four fields are all Nessie accepts: a transfer has no recipient and never changes a
+        // balance. The record below is what actually moves the money in the app.
+        amount: check.move.amount / 100, transaction_date: DEMO_ASOF, status: 'completed', description: 'Wallet Whisperer plan: savings to checking',
       });
       nessieTransferId = res.objectCreated?._id ?? null;
     } catch {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   }
   const what = [...(check.move ? [`moved ${money0(check.move.amount)} to checking`] : []), ...(cancel.length ? [`cancelled ${cancel.length} subscription${cancel.length === 1 ? '' : 's'}`] : [])].join(' and ');
   const health = await runHealthCheck(viewer.memberId, `you applied a plan (${what})`);
-  return NextResponse.json({ ...health, applied: { nessieTransferId, note: `Applied: ${what}.${nessieTransferId ? ' A real Nessie transfer was created.' : ''}${note}` } });
+  return NextResponse.json({ ...health, applied: { nessieTransferId, note: `Applied: ${what}.${nessieTransferId ? ' Nessie has a record of the transfer.' : ''}${note}` } });
 }
 
 export async function DELETE() {

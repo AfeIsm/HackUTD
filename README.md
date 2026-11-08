@@ -29,7 +29,7 @@ The calculation engine owns every financial number. Nemotron selects tools, comp
 | Track | Huddle's contribution | Evidence in the demo |
 | --- | --- | --- |
 | PNC — 360° Financial Health Navigator | Consolidated money view, five indicators, dated forecasts, purchase simulations, and actionable explanations | Change an input and inspect the resulting forecast and recommendation |
-| Capital One — Best Use of Nessie | Customer/account data, transaction history, bills, loans, merchants, sandbox account creation, and approved savings moves | Show data retrieved from Nessie and the provider record for a supported write |
+| Capital One — Best Use of Nessie | Customer/account data, transaction history, bills, loans, merchants, sandbox account creation, and transfer records | Show data retrieved from Nessie and the provider record for a supported write |
 | NVIDIA — Use Nemotron Beyond a Chatbot | A bounded agent workflow that retrieves context, calls calculation tools, evaluates options, and proposes a verified plan | Display actual tool calls, their results, and the selected plan |
 | MLH — MongoDB Atlas, subject to entry eligibility | User accounts with unique-username and TTL session indexes, persisted health history, reusable plans, versioned Huddles, consent, and saved pledges | Log in on a second device and retrieve the correct saved state |
 
@@ -46,7 +46,7 @@ These decisions apply to the main implementation.
 - **People are added by unique username.** Every account picks a username at sign-up. Usernames are case-insensitive and unique, enforced by a unique database index. Friends and family are added by typing an exact username and the other person accepts on their own device; there is no public directory and no phone or email lookup.
 - **Every spending decision names an exact source account.** Store `sourceAccountId`. Checking/savings is a display label derived from that account.
 - **Saved plans have a defined context.** Reuse a plan only while the financial inputs, assessment date, commitments, and relevant policy versions still match.
-- **Locking saves promises; it does not move money.** A locked Huddle records what each person is willing to spend, and they keep control of their own money in case something comes up. If later spending puts a pledge at risk, that member is warned privately and the group learns only that a commitment is at risk.
+- **Locking saves promises; it does not move money.** A locked Huddle records what each person is willing to spend, and they keep control of their own money in case something comes up. If later spending puts a pledge at risk, that member is warned privately and the group learns only that a commitment is at risk. Each member can choose **Transfer now** to send their own amount.
 - **Promises add up.** Each pledge is checked against current account money minus that member's pledges in their other live Huddles, as of today. Expected future income cannot make a pledge safe today.
 
 ## Build scope and order
@@ -164,12 +164,14 @@ Private source accounts, balances, health results, capacity calculations, and co
 
 ### F5 — Saved promises, not transfers
 
-When all paying members agree, the Huddle locks and each person's amount is saved as a promise. No money moves, deliberately: people keep control of their own money if something comes up.
+When all paying members agree, the Huddle locks and each person's amount is saved as a promise. Locking moves no money, deliberately: people keep control of their own money if something comes up. Money moves only when a member presses **Transfer now** and confirms the exact amount and account.
 
 - Members can keep spending. Every health check re-tests their pledges, including on locked Huddles.
 - If spending makes a pledge unaffordable, that member gets a private warning and a Nemotron plan to keep it. The group sees only that a commitment is at risk, never whose or why.
 - A member who pledged despite a warning has already been told the risk, so that pledge is flagged only if the money is gone.
 - A member's pledges add up across Huddles. Their other live promises are subtracted from what a new pledge can use, in private checks only.
+- **Transfer now** lowers that member's balance everywhere the app uses it: My Money, the health score, the forecast and later pledge checks. The Huddle shows who has transferred and the running total, and can no longer be left or deleted.
+- Nessie is a sandbox with a limitation we tested against the live API: a balance can only be set when an account is created. Transfers, withdrawals and deposits write a record without changing it, and account updates ignore a new balance. So the balance change is stored in MongoDB and applied over the Nessie data, and Nessie receives a transfer record as the paper trail.
 - A production version connected to real banks would add per-transfer authorization, a licensed payment partner to hold pooled funds, refunds when one payment fails, and a live balance check right before charging.
 
 Nessie requests and database writes do not form one atomic transaction. This workflow must represent partial progress and recover from interrupted requests.
@@ -220,7 +222,7 @@ The paths below are documentation findings. Endpoint and payload behavior still 
 | Loans | `GET/POST /accounts/{id}/loans`, `GET/PUT /loans/{id}` | Loan obligations and monthly payments |
 | Merchants | `GET/POST /merchants`, `GET/PUT /merchants/{id}` | Spending categories and seed merchants |
 | Purchases | `GET/PUT/DELETE /purchase/{purchase_id}` in the current reference | Merchant-based history where list/create operations are confirmed |
-| Transfers | `GET/PUT/DELETE /transfers/{transfer_id}` in the reference; `POST /accounts/{id}/transfers` in Quick Start | Approved savings moves from a plan |
+| Transfers | `GET/PUT/DELETE /transfers/{transfer_id}` in the reference; `POST /accounts/{id}/transfers` in Quick Start | Paper-trail records for Transfer now and approved savings moves. Nessie transfers have no recipient and do not change balances |
 | ATMs and branches | Directory lookups | Available resources outside the core workflow |
 | Enterprise | Customer, deposit and withdrawal lookups | Broad resource access that does not replace Huddle's per-member filtering |
 
@@ -252,7 +254,7 @@ The docs expose banking records and transactions. Huddle implements paycheck inf
 2. Create or reuse Huddle-owned synthetic customers and source accounts.
 3. Verify a deposit, account retrieval, bill and loan operation, including accepted fields.
 4. Verify supported purchase history and creation operations. Where needed, use clearly labeled synthetic history and documented withdrawal events while resolving the missing capability.
-5. Verify one mock savings-to-checking transfer and retrieve its status and both balances.
+5. Verify that a mock transfer record can be created and retrieved. Creating one does not change an account balance.
 6. Record response shape, timestamps, monetary units and observed balance/status semantics.
 7. Save normalized fixtures so UI and engine work can continue independently.
 
@@ -442,7 +444,8 @@ ownership to another account holder when necessary. At one or fewer remaining pa
 the Huddle is deleted; groups require at least two people at creation. Pending invitees count as
 participants. Declining the final invite applies the same cleanup. Deletions use version checks
 and disappear from other windows through the five-second poll. Locked Huddles
-only save promises, so this removal flow has no money to move or refund.
+only save promises, so this removal flow has no money to refund. Once any member has pressed
+Transfer now, the Huddle can no longer be left or deleted.
 
 New sign-ups read one of our seeded synthetic customers through the live Nessie API and
 randomly vary its checking/savings balances, regular payroll, bills, subscriptions and available

@@ -23,15 +23,15 @@ import type { AgentStep, DeclineReason, FinancialPicture } from '@/lib/types';
 import { acceptProposal, maybeAutoSearch, rejectProposal, searchBlocked, settleReview, startReview, startSearch } from '../purchase/review';
 import type { PurchaseBrief, PurchaseSearch } from '../purchase/types';
 
-interface HuddleDoc extends Omit<Huddle, 'id'> {
+export interface HuddleDoc extends Omit<Huddle, 'id'> {
   _id: string;
   version: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const huddles = async () => (await getDb()).collection<HuddleDoc>('huddles');
-const fromDoc = (d: HuddleDoc): Huddle => ({
+export const huddles = async () => (await getDb()).collection<HuddleDoc>('huddles');
+export const fromDoc = (d: HuddleDoc): Huddle => ({
   id: d._id, name: d.name, totalCost: d.totalCost, targetDate: d.targetDate, createdBy: d.createdBy, phase: d.phase,
   round: d.round, message: d.message, lastDecline: d.lastDecline, fairSplit: d.fairSplit ?? null, participants: d.participants,
   brief: d.brief ?? null, search: d.search ?? null, review: d.review ?? null, selected: d.selected ?? null, searchRuns: d.searchRuns ?? 0,
@@ -50,7 +50,7 @@ const hasMoney = async (memberId: string) => PEOPLE.some((p) => p.id === memberI
 export interface FailedPledge { huddleId: string; name: string; pledge: number; sourceAccountId: string; goalId?: string; targetDate: string; advice: PledgeAdvice }
 
 export type ActionResult = { ok: true; failedPledge?: FailedPledge; startSearch?: { huddleId: string; runId: string } } | { ok: false; status: number; error: string };
-const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
+export const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
 
 /** Every huddle the viewer is in (joined or invited), privacy-filtered for them. */
 export async function listHuddles(memberId: string): Promise<HuddleClientView[]> {
@@ -140,6 +140,9 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const isCreator = h.createdBy === viewer.memberId;
   const inReview = 'Finish reviewing the proposal first.';
+  if ((a.action === 'leave' || a.action === 'delete') && h.participants.some((p) => p.transfer?.status === 'sent')) {
+    return fail(409, 'Money has already been transferred for this huddle, so it can’t be left or deleted.');
+  }
 
   switch (a.action) {
     case 'findOptions': {
@@ -259,7 +262,7 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
   const all = docs.map(fromDoc);
   for (const d of docs) {
     const p = d.participants.find((x) => x.memberId === memberId);
-    if (!p?.pledge || !p.sourceAccountId) continue;
+    if (!p?.pledge || !p.sourceAccountId || p.transfer?.status === 'sent') continue; // already sent: nothing left at risk
     const check = checkPledge(withOtherPledges(picture, all, d._id, DEMO_ASOF), {
       amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}),
     }, d.targetDate, DEMO_ASOF);

@@ -3,7 +3,9 @@
 // Server only. Works without MongoDB too (then app changes just aren't saved).
 // Money is integer cents everywhere (lib/types.ts contract).
 
+import type { Db } from 'mongodb';
 import type { FinancialPicture, Txn } from '../types';
+import type { Participant } from '../huddles';
 import { getDb, mongoConfigured } from '../db/mongo';
 import { checkSource } from '../engine/source';
 import { loadMember, local } from '../nessie/client';
@@ -50,7 +52,20 @@ export interface ObligationTagDoc {
 }
 
 /** Apply saved purchases (in the order they were made) and tag overrides on top of the Nessie picture. */
-export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[], applied: AppliedPlanDoc[] = [], savedGoals: SavingsGoalDoc[] = []): FinancialPicture {
+// A member pressed "Transfer now" on a locked huddle. Nessie can't change a balance after an
+// account is created, so this overlay is what makes the money actually leave.
+export interface SentTransfer { huddleId: string; name: string; amount: number; sourceAccountId: string; goalId?: string }
+
+async function sentTransfers(db: Db, memberId: string): Promise<SentTransfer[]> {
+  const docs = await db.collection<{ name: string; participants: Participant[] }>('huddles')
+    .find({ participants: { $elemMatch: { memberId, 'transfer.status': 'sent' } } }).project<{ _id: unknown; name: string; participants: Participant[] }>({ name: 1, participants: 1 }).toArray();
+  return docs.flatMap((d) => {
+    const p = d.participants.find((x) => x.memberId === memberId);
+    return p?.pledge && p.sourceAccountId ? [{ huddleId: String(d._id), name: d.name, amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}) }] : [];
+  });
+}
+
+export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[], applied: AppliedPlanDoc[] = [], savedGoals: SavingsGoalDoc[] = [], sent: SentTransfer[] = []): FinancialPicture {
   // Goals on accounts that no longer exist (regenerated demo finances) are skipped.
   const goals = savedGoals
     .filter((g) => base.accounts.some((a) => a.id === g.accountId && a.type === 'Savings' && a.ownerMemberId === base.memberId))
@@ -65,6 +80,20 @@ export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[]
   }
   if (cancelled.size) picture = { ...picture, obligations: picture.obligations.filter((o) => !cancelled.has(o.key)) };
   const txns: Txn[] = [];
+  for (const t of sent) {
+    const account = picture.accounts.find((a) => a.id === t.sourceAccountId && a.ownerMemberId === base.memberId);
+    if (!account || account.type === 'Credit Card') continue; // stale record: skip it
+    const check = checkSource(picture, t.amount, account.id, t.goalId);
+    picture = {
+      ...picture,
+      accounts: picture.accounts.map((a) => (a.id === account.id ? { ...a, balance: a.balance - t.amount } : a)),
+      goals: picture.goals.map((g) => (g.id === t.goalId ? { ...g, amount: Math.max(0, g.amount - check.fromGoal) } : g)),
+    };
+    txns.push({
+      id: `huddle-transfer-${t.huddleId}`, accountId: account.id, source: account.type === 'Checking' ? 'checking' : 'savings', kind: 'transfer',
+      amount: t.amount, goalAllocationUsed: check.fromGoal || undefined, date: DEMO_ASOF, description: `Transferred to ${t.name}`,
+    });
+  }
   purchases.forEach((p, i) => {
     const account = picture.accounts.find((a) => a.id === p.sourceAccountId && a.ownerMemberId === base.memberId);
     if (!account || account.type === 'Credit Card') return; // stale or invalid record: skip it
@@ -121,16 +150,17 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
       }
     }
     if (!snapshot) return { picture: null, source: 'none', saved: false };
-    const [purchases, tags, applied, goals] = await Promise.all([
+    const [purchases, tags, applied, goals, sent] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
       db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<SavingsGoalDoc>('savingsGoals').find({ memberId }).sort({ createdAt: 1 }).toArray(),
+      sentTransfers(db, memberId),
     ]);
     const base = source === 'stale' ? { ...snapshot.picture,
       missingInputs: [...snapshot.picture.missingInputs, `Bank sync failed. Last successful sync: ${snapshot.syncedAt.toISOString()}. Refresh before approving spending.`],
     } : snapshot.picture;
-    return { picture: applyAppChanges(base, purchases, tags, applied, goals), source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied, goals, sent), source, saved: true };
   }
   if (!person || !person.hasAccounts) return { picture: null, source: 'none', saved: false };
   const loaded = await loadMember(memberId);
@@ -140,13 +170,14 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
   if (!mongoConfigured()) return { picture: base, source: loaded.source, saved: false };
   try {
     const db = await getDb();
-    const [purchases, tags, applied, goals] = await Promise.all([
+    const [purchases, tags, applied, goals, sent] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
       db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<SavingsGoalDoc>('savingsGoals').find({ memberId }).sort({ createdAt: 1 }).toArray(),
+      sentTransfers(db, memberId),
     ]);
-    return { picture: applyAppChanges(base, purchases, tags, applied, goals), source: loaded.source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied, goals, sent), source: loaded.source, saved: true };
   } catch (err) {
     console.warn(`MongoDB unavailable for ${memberId}:`, (err as Error).message);
     return { picture: base, source: loaded.source, saved: false };
