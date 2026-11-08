@@ -2,12 +2,19 @@
 // Every number was re-scored by the engine; the plan is saved per data fingerprint, so the
 // same data always shows the same plan.
 
+'use client';
+
 import type { FixPlan, FixStep } from '@/lib/types';
+import type { HealthPayload } from '@/lib/services/health';
+import { ApplyPlanButton } from './ApplyPlanButton';
 import { Card, Eyebrow, StatusPill } from './ui';
 
 const ICON: Record<FixStep['kind'], string> = { cancel: '✂', move: '⇄', save: '↗' };
 
-export function FixPlanCard({ plan }: { plan: FixPlan }) {
+export function FixPlanCard({ plan, onApplied }: { plan: FixPlan; onApplied: (payload: HealthPayload, note: string) => void }) {
+  const cancel = plan.steps.filter((s) => s.kind === 'cancel' && s.obligationKey).map((s) => s.obligationKey!);
+  const move = plan.steps.find((s) => s.kind === 'move');
+  const applicable = cancel.length > 0 || !!move;
   const improves = plan.scoreAfter !== null && plan.scoreBefore !== null && plan.scoreAfter > plan.scoreBefore;
   return (
     <Card label="Your fix plan" className="flex min-w-0 flex-col gap-4">
@@ -41,6 +48,7 @@ export function FixPlanCard({ plan }: { plan: FixPlan }) {
           ))}
         </ol>
       )}
+      {applicable && improves && <ApplyPlanButton plan={{ cancel, moveSavingsToChecking: move ? move.amount / 100 : null }} onApplied={onApplied} />}
       <p className="m-0 text-xs text-muted">
         Calculated by our scoring engine, not guessed: each step was re-scored before it was suggested. Same data, same plan.
         {plan.stillNotGreen.length > 0 && <> Still not green after this: {plan.stillNotGreen.join(', ')}.</>}

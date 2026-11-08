@@ -7,6 +7,8 @@
 import { useState } from 'react';
 import type { AgentStep } from '@/lib/types';
 import type { AgentAnswer } from '@/lib/agent/loop';
+import type { HealthPayload } from '@/lib/services/health';
+import { ApplyPlanButton } from './ApplyPlanButton';
 import { Card, Eyebrow, StatusPill, btn, input } from './ui';
 
 const EXAMPLES = [
@@ -27,7 +29,7 @@ const VERDICT: Record<NonNullable<AgentAnswer['plan']>['verdict'], { label: stri
 
 const STEP_ICON: Record<AgentStep['type'], string> = { plan: '🧭', tool: '🔧', result: '↺', final: '✓' };
 
-export function AgentPanel() {
+export function AgentPanel({ onApplied }: { onApplied: (payload: HealthPayload, note: string) => void }) {
   const [question, setQuestion] = useState('');
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const [answer, setAnswer] = useState<AgentAnswer | null>(null);
@@ -138,6 +140,7 @@ export function AgentPanel() {
           {plan.firstStep && <p className="m-0 rounded-lg bg-accent-bg px-3 py-2 text-[14px]"><span className="font-semibold">First step:</span> {plan.firstStep}</p>}
           {plan.explanation && <p className="m-0 text-[14px] text-ink-2"><span className="font-semibold">Nemotron:</span> {plan.explanation}</p>}
           {plan.notGreen.length > 0 && <p className="m-0 text-[13px] text-warn">Still not green after this: {plan.notGreen.join(' · ')}</p>}
+          {plan.apply && <ApplyPlanButton plan={plan.apply} onApplied={onApplied} />}
           <p className="m-0 text-xs text-muted">
             Score re-checked by our engine{answer?.cached ? ' · saved answer (same question, same data)' : ''} · {answer?.model}
           </p>

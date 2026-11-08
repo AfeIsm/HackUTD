@@ -56,6 +56,13 @@ export default function DashboardPage() {
     setNote({ id: person.id, text: 'Generated a new Nessie demo profile and recalculated your score.', ok: true });
   }} />;
 
+  // "Apply this plan" / "Undo" returns the fresh health check: show it.
+  const applied = (next: HealthPayload, text: string) => {
+    setLoaded({ id: person.id, payload: next });
+    invalidatePicture(person.id);
+    setNote({ id: person.id, text, ok: true });
+  };
+
   // Save something, then show the fresh (automatically re-run) health check
   const send = async (url: string, method: string, body: Record<string, unknown>, describe: (p: HealthPayload) => string | null) => {
     setBusy(true);
@@ -165,8 +172,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {payload.plan && <FixPlanCard plan={payload.plan} />}
-      <AgentPanel />
+      {payload.plan && <FixPlanCard key={payload.plan.dataHash} plan={payload.plan} onApplied={applied} />}
+      <AgentPanel onApplied={applied} />
 
       <div className="flex flex-wrap items-start gap-5">
         <Card label="Add a purchase" className="min-w-0 flex-[999_1_520px]">

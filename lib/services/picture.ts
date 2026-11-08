@@ -21,6 +21,18 @@ export interface AppPurchase {
   createdAt: Date;
 }
 
+// A plan the member applied in the app ("Apply this plan"): a savings→checking move (also sent to
+// Nessie as a real transfer) and/or cancelled non-essential subscriptions.
+export interface AppliedPlanDoc {
+  memberId: string;
+  dataHash: string; // the data it was applied to (unique with planKey: no double-apply)
+  planKey: string;
+  move: { fromAccountId: string; toAccountId: string; amount: number } | null; // cents
+  cancel: string[]; // obligation keys
+  nessieTransferId: string | null;
+  createdAt: Date;
+}
+
 export interface ObligationTagDoc {
   memberId: string;
   obligationKey: string;
@@ -28,8 +40,16 @@ export interface ObligationTagDoc {
 }
 
 /** Apply saved purchases (in the order they were made) and tag overrides on top of the Nessie picture. */
-export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[]): FinancialPicture {
+export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[], applied: AppliedPlanDoc[] = []): FinancialPicture {
   let picture = base;
+  const cancelled = new Set(applied.flatMap((a) => a.cancel));
+  for (const a of applied) {
+    if (!a.move) continue;
+    const { fromAccountId, toAccountId, amount } = a.move;
+    if (![fromAccountId, toAccountId].every((id) => picture.accounts.some((x) => x.id === id && x.ownerMemberId === base.memberId))) continue; // stale
+    picture = { ...picture, accounts: picture.accounts.map((x) => x.id === fromAccountId ? { ...x, balance: x.balance - amount } : x.id === toAccountId ? { ...x, balance: x.balance + amount } : x) };
+  }
+  if (cancelled.size) picture = { ...picture, obligations: picture.obligations.filter((o) => !cancelled.has(o.key)) };
   const txns: Txn[] = [];
   purchases.forEach((p, i) => {
     const account = picture.accounts.find((a) => a.id === p.sourceAccountId && a.ownerMemberId === base.memberId);
@@ -87,14 +107,15 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
       }
     }
     if (!snapshot) return { picture: null, source: 'none', saved: false };
-    const [purchases, tags] = await Promise.all([
+    const [purchases, tags, applied] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
+      db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
     ]);
     const base = source === 'stale' ? { ...snapshot.picture,
       missingInputs: [...snapshot.picture.missingInputs, `Bank sync failed. Last successful sync: ${snapshot.syncedAt.toISOString()}. Refresh before approving spending.`],
     } : snapshot.picture;
-    return { picture: applyAppChanges(base, purchases, tags), source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied), source, saved: true };
   }
   if (!person || !person.hasAccounts) return { picture: null, source: 'none', saved: false };
   const loaded = await loadMember(memberId);
@@ -104,11 +125,12 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
   if (!mongoConfigured()) return { picture: base, source: loaded.source, saved: false };
   try {
     const db = await getDb();
-    const [purchases, tags] = await Promise.all([
+    const [purchases, tags, applied] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
+      db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
     ]);
-    return { picture: applyAppChanges(base, purchases, tags), source: loaded.source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied), source: loaded.source, saved: true };
   } catch (err) {
     console.warn(`MongoDB unavailable for ${memberId}:`, (err as Error).message);
     return { picture: base, source: loaded.source, saved: false };

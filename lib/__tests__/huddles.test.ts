@@ -80,7 +80,7 @@ describe('Huddle phase machine + privacy filter', () => {
   it('a locked commitment that stops passing its check warns everyone, but only its owner sees why', () => {
     const ps = ['alex', 'sam'].map((id) => newParticipant(id, id, id, { committed: true, agreed: true, pledge: 100, sourceAccountId: 'acct-' + id }));
     ps[1] = { ...ps[1], atRisk: true, riskReason: 'leaves a red assessment', riskScore: 42,
-      coach: { verdict: 'yesIf', headline: 'SECRET-COACH-PLAN', focus: null, firstStep: null, summary: '', explanation: '', actions: [], scoreBefore: 42, scoreAfter: 80, statusBefore: 'red', statusAfter: 'green', notGreen: [], problems: [], createdAt: '2026-11-08T00:00:00Z' } };
+      coach: { verdict: 'yesIf', headline: 'SECRET-COACH-PLAN', focus: null, firstStep: null, summary: '', explanation: '', actions: [], scoreBefore: 42, scoreAfter: 80, statusBefore: 'red', statusAfter: 'green', notGreen: [], problems: [], apply: null, createdAt: '2026-11-08T00:00:00Z' } };
     const h: Huddle = { ...huddle(ps), phase: 'locked' };
     const alexView = viewFor(h, 'alex');
     expect(alexView.atRiskCount).toBe(1);

@@ -23,6 +23,7 @@ export interface AgentPlan {
   statusAfter: Status;
   notGreen: string[];
   problems: string[];
+  apply: { cancel: string[]; moveSavingsToChecking: number | null } | null; // what "Apply" can do (dollars)
 }
 
 export interface AgentAnswer {
@@ -83,6 +84,7 @@ function makePlan(picture: FinancialPicture, input: ScenarioInput, asOf: string,
     explanation: explanation.length >= 15 ? explanation : '', // drop junk like a bare 'test'
     actions: scenario.actions, scoreBefore: scenario.before.score, scoreAfter: scenario.after!.score,
     statusBefore: scenario.before.status, statusAfter: scenario.after!.status, notGreen: scenario.after!.notGreen, problems: scenario.after!.problems,
+    apply: input.cancel?.length || input.moveSavingsToChecking ? { cancel: input.cancel ?? [], moveSavingsToChecking: input.moveSavingsToChecking ?? null } : null,
   };
 }
 

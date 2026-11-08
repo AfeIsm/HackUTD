@@ -58,6 +58,8 @@ function ensureIndexes(db: Db): Promise<void> {
     // Agent answers: same question + same data fingerprint → one saved answer, no new AI call.
     db.collection('agentAnswers').createIndex({ memberId: 1, dataHash: 1, questionKey: 1 }, { unique: true }),
     db.collection('agentAnswers').createIndex({ memberId: 1, createdAt: -1 }),
+    // Applied plans: one per (member, data fingerprint, plan) → a double click can't apply twice.
+    db.collection('appliedPlans').createIndex({ memberId: 1, dataHash: 1, planKey: 1 }, { unique: true }),
     db.collection('friendRequests').createIndex({ toUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex({ fromUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex(

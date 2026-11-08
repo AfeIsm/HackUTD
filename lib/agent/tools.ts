@@ -27,6 +27,7 @@ export interface ScenarioResult {
   before: { score: number | null; status: Status };
   after?: { score: number | null; status: Status; notGreen: string[]; flags: string[]; problems: string[]; worst: { label: string; why: string } | null };
   purchaseLabel?: string; // set when the scenario includes the purchase being asked about
+  move?: { fromAccountId: string; toAccountId: string; amount: number }; // cents, when the scenario moves savings
 }
 
 const brief = (r: HealthResult) => ({ score: r.score, status: r.overall });
@@ -42,6 +43,7 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
   const changes: Change[] = [];
   let picture = p;
   let days = 30;
+  let move: ScenarioResult['move'];
 
   for (const key of input.cancel ?? []) {
     const o = p.obligations.find((x) => x.key === key);
@@ -58,6 +60,7 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
     if (cents > free) return fail(`Only ${money0(free)} of savings is free (the rest is set aside for goals).`);
     picture = { ...picture, accounts: picture.accounts.map((a) => a.id === savings.id ? { ...a, balance: a.balance - cents } : a.id === checking.id ? { ...a, balance: a.balance + cents } : a) };
     actions.push(`Short-term: move ${money0(cents)} from ${savings.nickname} to ${checking.nickname}`);
+    move = { fromAccountId: savings.id, toAccountId: checking.id, amount: cents };
   }
   if (input.weeklySavings) {
     const cents = toCents(input.weeklySavings);
@@ -83,7 +86,7 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
   const worst = after.indicators.filter((i) => i.status !== 'green').sort((a, b) => rank[a.status] - rank[b.status] || b.weight - a.weight)[0];
   return {
     ok: true, actions, before: brief(before),
-    purchaseLabel: input.purchase ? actions[actions.length - 1] : undefined,
+    purchaseLabel: input.purchase ? actions[actions.length - 1] : undefined, move,
     after: {
       ...brief(after), notGreen: after.indicators.filter((i) => i.status !== 'green').map((i) => `${i.label}: ${i.display}`), flags: after.flags, problems: after.missingInputs,
       worst: worst ? { label: worst.label, why: worst.explanation } : null,
