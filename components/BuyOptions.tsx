@@ -3,7 +3,7 @@
 // Under the Can I buy answer: is the price realistic, and what else could you buy instead?
 // Each option's verdict comes from the same engine as the answer above it, on this device.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AgentStep, FinancialPicture } from '@/lib/types';
 import type { BuyEvent, BuyQuestion, BuyResult } from '@/lib/agent/buyOptions';
 import type { Proposal } from '@/lib/purchase/types';
@@ -26,6 +26,7 @@ interface State {
 export function useBuyOptions() {
   const [state, setState] = useState<State | null>(null);
   const current = useRef<AbortController | null>(null);
+  useEffect(() => () => current.current?.abort(), []);
 
   const start = async (key: string, q: BuyQuestion) => {
     current.current?.abort();
@@ -33,6 +34,7 @@ export function useBuyOptions() {
     current.current = abort;
     setState({ key, check: undefined, steps: [], result: null, error: null });
     const apply = (e: BuyEvent) => setState((s) => {
+      if (abort.signal.aborted || current.current !== abort) return s;
       if (!s || s.key !== key) return s;
       if (e.type === 'check') return { ...s, check: e.check };
       if (e.type === 'step') return { ...s, steps: [...s.steps, e.step] };
@@ -48,14 +50,23 @@ export function useBuyOptions() {
       }
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buffer = '';
+      let finished = false;
+      const accept = (line: string) => {
+        if (!line.trim() || finished) return;
+        const event = JSON.parse(line) as BuyEvent;
+        apply(event);
+        if (event.type === 'done' || event.type === 'error') finished = true;
+      };
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
         buffer += value;
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-        for (const line of lines) if (line.trim()) apply(JSON.parse(line) as BuyEvent);
+        lines.forEach(accept);
       }
+      accept(buffer);
+      if (!finished) apply({ type: 'error', error: 'The listing search ended early. Try again.' });
     } catch (err) {
       if ((err as Error).name !== 'AbortError') apply({ type: 'error', error: 'The price search hit a problem. Try again.' });
     }

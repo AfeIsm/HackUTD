@@ -1,0 +1,56 @@
+.buy-compare-trigger { width: 100%; justify-content: center; gap: 10px; border: 1px solid var(--note-ink); border-radius: 12px; padding: 14px; background: var(--note-light); color: var(--note-ink); font-weight: 700; }
+.buy-compare-trigger:hover { background: var(--note); }
+dialog.buy-compare-dialog { width: min(1040px, calc(100vw - 28px)); max-width: none; max-height: 90dvh; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 24px; background: var(--paper); color: var(--foreground); box-shadow: var(--shadow-object); overflow: auto; }
+.buy-compare-dialog::backdrop { background: oklch(.15 .02 150 / .55); backdrop-filter: blur(5px); }
+.buy-compare-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); padding: 22px 28px; background: var(--paper); }
+.buy-compare-eyebrow { display: block; color: var(--note-ink); font-size: .75rem; font-weight: 700; }
+.buy-compare-dialog-header h2 { margin: 5px 0 6px; font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 600; letter-spacing: -.025em; }
+.buy-compare-dialog-header p { margin: 0; color: var(--muted-foreground); font-size: .875rem; line-height: 1.5; }
+.buy-compare-close { display: grid; flex: none; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; background: var(--paper); color: var(--foreground); font-size: 1.7rem; }
+.buy-compare-close:hover { background: var(--muted); }
+.buy-compare-dialog-body { display: flex; flex-direction: column; gap: 20px; padding: 24px 28px; }
+.buy-compare-recommendation { border: 1px solid var(--hack-line); border-radius: 14px; padding: 16px 20px; background: var(--note-light); }
+.buy-compare-recommendation strong { display: block; margin: 5px 0; font-size: 1.125rem; color: var(--note-ink); }
+.buy-compare-recommendation p { margin: 0; font-size: .875rem; line-height: 1.5; }
+.buy-compare-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.buy-compare-progress > span { color: var(--muted-foreground); font-size: .8125rem; line-height: 1.5; }
+.buy-compare-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.buy-compare-card { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--border); border-top: 3px solid var(--scenario-color); border-radius: 14px; background: var(--paper); }
+.buy-compare-card[data-recommended="true"] { border-color: var(--note-ink); box-shadow: 0 0 0 1px var(--note-ink); background: color-mix(in oklab, var(--note-light) 30%, var(--paper)); }
+.buy-compare-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.buy-compare-card h3 { margin: 0; font-family: var(--font-sans); font-size: .9375rem; font-weight: 700; }
+.buy-compare-card-top > span { border-radius: 999px; padding: 4px 7px; background: var(--note-ink); color: var(--paper); font-size: .6875rem; font-weight: 700; }
+.buy-compare-price { display: block; font-family: var(--font-display); font-size: 2rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.buy-compare-date, .buy-compare-unavailable { margin: 0; color: var(--muted-foreground); font-size: .8125rem; line-height: 1.5; }
+.buy-compare-stats { display: flex; flex-direction: column; gap: 8px; margin: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.buy-compare-stats > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; font-size: .8125rem; }
+.buy-compare-stats dt { color: var(--muted-foreground); }
+.buy-compare-stats dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.buy-compare-card details { margin-top: auto; font-size: .8125rem; line-height: 1.5; }
+.buy-compare-card summary { width: fit-content; padding-block: 6px; font-weight: 600; }
+.buy-compare-card details ul { margin: 8px 0; padding-left: 17px; }
+.buy-compare-card a { display: inline-block; color: var(--note-ink); font-weight: 700; text-underline-offset: 3px; }
+.buy-compare-search-message { margin: 0; color: var(--muted-foreground); font-size: .8125rem; line-height: 1.5; }
+.buy-compare-chart-heading { margin: 0 0 12px; font-size: 1rem; font-weight: 600; }
+.buy-compare-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0 0 8px; font-size: .8125rem; }
+.buy-compare-legend > span { display: inline-flex; align-items: center; gap: 7px; }
+.buy-compare-line-key { display: inline-block; width: 24px; border-top: 3px solid var(--scenario-color); }
+.buy-compare-plot { min-width: 0; border-radius: 12px; background: linear-gradient(180deg, var(--muted), var(--paper)); }
+.buy-compare-plot svg { display: block; width: 100%; touch-action: pan-y; }
+.buy-compare-readout { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.buy-compare-readout time { font-weight: 700; }
+.buy-compare-slider { width: 100%; min-height: 32px; margin: 0; accent-color: var(--note-ink); }
+.buy-compare-chart-note { margin: 0; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; }
+.buy-compare-dialog-footer { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+.buy-compare-activity { flex: 1; min-width: 0; font-size: .8125rem; }
+.buy-compare-activity summary { width: fit-content; padding-block: 12px; font-weight: 600; }
+.buy-compare-swipe { display: none; }
+@media (max-width: 640px) {
+  dialog.buy-compare-dialog { width: calc(100vw - 16px); max-height: 94dvh; border-radius: 18px; }
+  .buy-compare-dialog-header { padding: 18px; }
+  .buy-compare-dialog-body { padding: 18px; }
+  .buy-compare-cards { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 88%; overflow-x: auto; scroll-snap-type: x proximity; margin: -3px; padding: 3px 3px 10px; }
+  .buy-compare-card { scroll-snap-align: start; }
+  .buy-compare-swipe { display: block; margin: -12px 0 0; color: var(--muted-foreground); font-size: .75rem; }
+  .buy-compare-recommendation { padding: 14px; }
+}
