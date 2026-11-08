@@ -160,6 +160,11 @@ export default function BuyPage() {
                 </div>
                 <h2 className="m-0 text-[28px] leading-tight">{headline(result)}</h2>
                 <p className="m-0 leading-relaxed text-ink-2">{result.reason}</p>
+                {result.lowUntilPayday && (
+                  <p role="status" className="m-0 rounded-[10px] bg-warn-bg px-3.5 py-3 text-sm text-warn">
+                    This leaves {money0(result.lowUntilPayday.left)} {result.lowUntilPayday.payday ? `until your ${shortDate(result.lowUntilPayday.payday)} paycheck` : 'in this account'}. Everyday spending like food and gas isn’t counted in your score.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-3">
                   <ScoreBox label="Score now" value={result.scoreBefore} />
                   <ScoreBox

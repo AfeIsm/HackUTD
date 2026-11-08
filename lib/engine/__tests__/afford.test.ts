@@ -11,6 +11,16 @@ describe('purchase approval', () => {
     const r = buy(alex, 100);
     expect(r.scoreBefore).toBe(60); expect(r.scoreAfter).toBe(60); expect(r.verdict).toBe('no');
   });
+  it('warns when checking is left thin before the next paycheck, without touching the score', () => {
+    const r = buy(healthy, 50000);
+    expect(r.lowUntilPayday?.payday).toBe('2026-11-13');
+    expect(r.lowUntilPayday?.left).toBeLessThanOrEqual(30000);
+  });
+  it('does not warn when plenty is left, or when paying from savings', () => {
+    const rich = { ...healthy, accounts: healthy.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 5000000 } : a) };
+    expect(buy(rich, 12000).lowUntilPayday).toBeUndefined();
+    expect(buy(healthy, 100, 'a2').lowUntilPayday).toBeUndefined();
+  });
   it('still shows a yellow shopper something that keeps them yellow', () => {
     expect(fitsBudget(buy(alex, 100))).toBe(true);
   });
