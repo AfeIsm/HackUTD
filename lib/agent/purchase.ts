@@ -163,7 +163,7 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
 
   function saveWith(picks: { k: Known; why: unknown }[], summary: unknown) {
     const proposals = picks.slice(0, MAX_PROPOSALS).map((p, i) => toProposal(p.k, runId, i + 1, p.why, brief.category === 'trip' ? budget : null));
-    return step('final', `Created ${proposals.length} ${proposals.length === 1 ? 'proposal' : 'proposals'} for the group to review.`, 'proposals')
+    return step('final', `Created ${proposals.length} ${proposals.length === 1 ? 'proposal' : 'proposals'}. Everyone now has to accept the top one.`, 'proposals')
       .then(() => finish({ status: 'done', proposals, summary: groupSafe(summary, 300) || null, usedDemo, noSolution: null }));
   }
 

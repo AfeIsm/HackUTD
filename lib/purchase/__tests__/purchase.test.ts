@@ -183,6 +183,18 @@ describe('everyone must accept a proposal', () => {
     expect(both.totalCost).toBe(40000);
     expect(both.participants.map((p) => p.pledge)).toEqual([20000, 15000]);
   });
+  it('switching to another option starts the acceptances over', () => {
+    const h = withProposals();
+    const two = { ...h, search: { ...h.search!, proposals: [proposal(), proposal({ id: 'p2', offerKey: 'offer-2' })] } };
+    const one = acceptProposal(startReview(two, 'p1') as Huddle, 'a');
+    const switched = startReview(one, 'p2') as Huddle;
+    expect(switched.review?.proposal.id).toBe('p2');
+    expect(switched.review?.acceptedBy).toEqual([]);
+    expect(startReview(switched, 'p2')).toBeTypeOf('string');
+  });
+  it('once everyone accepts, the other options are gone', () => {
+    expect(acceptProposal(acceptProposal(inReview(), 'a'), 'b').search?.proposals).toEqual([]);
+  });
   it('an underfunded plan stays underfunded after everyone accepts', () => {
     const done = acceptProposal(acceptProposal(inReview(), 'a'), 'b');
     expect(done.phase).toBe('revealed');

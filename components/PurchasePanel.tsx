@@ -93,6 +93,7 @@ export function PurchasePanel({ h, isCreator, run, busy }: { h: HuddleClientView
   const { search, review, selected, searchesLeft } = purchase;
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const running = search?.status === 'running';
+  const others = search?.status === 'done' && open ? search.proposals.filter((p) => p.id !== review?.proposal.id) : [];
   return (
     <section aria-label="Cheaper alternatives" className="box-border flex flex-col gap-4 rounded-[14px] border border-line bg-surface p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -132,11 +133,12 @@ export function PurchasePanel({ h, isCreator, run, busy }: { h: HuddleClientView
       {search?.noSolution && <p className="m-0 rounded-xl bg-bad-bg px-4 py-3 text-sm text-[#7A1712]">{search.noSolution}</p>}
       {search?.summary && <p className="m-0 text-[15px]">{search.summary}</p>}
 
-      {!review && search?.status === 'done' && open && search.proposals.map((p) => (
+      {review && others.length > 0 && <Eyebrow>Other options Nemotron found</Eyebrow>}
+      {others.map((p) => (
         <ProposalCard key={p.id} p={p}>
           {isCreator
-            ? <button type="button" className={`${btn} self-start`} disabled={busy} onClick={() => void run({ action: 'reviewProposal', proposalId: p.id })}>Review proposal</button>
-            : <span className="text-[13px] text-muted">The creator can send this to the group for review.</span>}
+            ? <button type="button" className={`${review ? btn2 : btn} self-start`} disabled={busy} onClick={() => void run({ action: 'reviewProposal', proposalId: p.id })}>{review ? 'Ask everyone about this one instead' : 'Send to everyone'}</button>
+            : <span className="text-[13px] text-muted">Only the creator can switch to this option.</span>}
         </ProposalCard>
       ))}
     </section>

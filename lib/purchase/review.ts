@@ -38,7 +38,7 @@ export function maybeAutoSearch(h: Huddle, runId: string, nowMs: number): Huddle
 /** "Review proposal": a new approval round. Earlier agreements no longer apply. */
 export function startReview(h: Huddle, proposalId: string): Huddle | string {
   if (!isOpen(h)) return 'This huddle is finished.';
-  if (h.review) return 'Another proposal is already being reviewed.';
+  if (h.review?.proposal.id === proposalId) return 'Everyone is already reviewing that one.';
   const proposal = h.search?.status === 'done' ? h.search.proposals.find((p) => p.id === proposalId) : undefined;
   if (!proposal) return 'That proposal is no longer available.';
   return { ...resetAgreements(h), review: { proposal, acceptedBy: [] }, message: `Everyone needs to review: ${proposal.title}.` };
@@ -54,6 +54,7 @@ export function settleReview(h: Huddle): Huddle {
   const { proposal } = h.review;
   return advance({
     ...resetAgreements(h), review: null, selected: proposal, totalCost: proposal.planTotal, lastDecline: null, fairSplit: null,
+    search: h.search && { ...h.search, proposals: [] }, // decided: the other options are done with
     message: `Everyone accepted ${proposal.title}. Nothing has been bought and no money has moved.`,
   });
 }

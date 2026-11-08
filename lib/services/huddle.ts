@@ -145,7 +145,7 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
       return typeof started === 'string' ? fail(409, started) : started;
     }
     case 'respondProposal': {
-      if (!h.review) return fail(409, 'There’s nothing to review right now.');
+      if (!h.review || !open) return fail(409, 'There’s nothing to review right now.');
       if (!me.joined || !me.userId) return fail(409, 'Join the huddle first.');
       if (h.review.acceptedBy.includes(me.memberId)) return fail(409, 'You already accepted this proposal.');
       if (a.accept) return acceptProposal(h, me.memberId);
@@ -286,8 +286,19 @@ export async function appendSearchStep(huddleId: string, runId: string, step: Ag
 }
 
 export async function finishSearch(huddleId: string, runId: string, patch: Partial<PurchaseSearch>): Promise<void> {
+  const col = await huddles();
   const fields = Object.fromEntries(Object.entries({ status: 'done', ...patch }).map(([k, v]) => [`search.${k}`, v]));
-  await (await huddles()).updateOne(currentRun(huddleId, runId), { $set: { ...fields, updatedAt: new Date() }, $inc: { version: 1 } } as never);
+  const update = { $set: { ...fields, updatedAt: new Date() }, $inc: { version: 1 } };
+  // The top option goes straight to everyone, in the same write, as a new approval round.
+  const top = patch.proposals?.[0];
+  if (top) {
+    const opened = await col.updateOne({ ...currentRun(huddleId, runId), phase: { $nin: ['locked', 'cancelled'] } }, {
+      ...update,
+      $set: { ...update.$set, review: { proposal: top, acceptedBy: [] }, message: `Everyone needs to accept or turn down: ${top.title}.`, 'participants.$[].agreed': false },
+    } as never);
+    if (opened.matchedCount === 1) return;
+  }
+  await col.updateOne(currentRun(huddleId, runId), update as never);
 }
 
 /** Store Nemotron's advice on a failed pledge, only if that same pledge is still the current one. */
