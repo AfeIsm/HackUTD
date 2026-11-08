@@ -48,7 +48,7 @@ button:disabled { cursor: not-allowed; }
   padding-left: 36px;
 }
 .page-buy .page-title { color: var(--note-ink); font-weight: 700; }
-.page-buy .page-intro { color: var(--note-ink); opacity: 0.85; font-size: 0.95rem; }
+.page-buy .page-intro { color: var(--note-ink); opacity: 0.95; font-size: 0.95rem; font-weight: 700; }
 .skip-link { position: fixed; left: 20px; top: -100px; z-index: 100; padding: 10px 16px; background: var(--paper); border-radius: 8px; }
 .skip-link:focus { top: 16px; }
 .wallet-session-note { position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 20; text-align: center; }
