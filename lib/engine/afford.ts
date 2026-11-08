@@ -1,4 +1,4 @@
-import type { AffordResult, FinancialPicture, HealthResult } from '../types';
+import type { AffordResult, FinancialPicture, ForecastPoint, HealthResult } from '../types';
 import { shortDate } from '../format';
 import { daysBetween } from './dates';
 import { forecastBalance } from './forecast';
@@ -9,6 +9,27 @@ import { validDate } from './validation';
 export interface AffordQuestion { label: string; cost: number; date?: string; sourceAccountId: string; goalId?: string }
 export function purchaseOk(_before: HealthResult, after: HealthResult): boolean {
   return after.overall === 'green' && after.missingInputs.length === 0;
+}
+// The score only counts scheduled bills, so a balance can look green with little left for food and gas.
+const LOW_UNTIL_PAYDAY = 50_000;
+function lowUntilPayday(points: ForecastPoint[], date: string): { left: number; payday: string | null } | undefined {
+  const from = points.filter((x) => x.date >= date);
+  if (!from.length) return undefined;
+  let left = from[0].balance, payday: string | null = null;
+  for (let i = 1; i < from.length; i++) {
+    if (from[i].balance > from[i - 1].balance) { payday = from[i].date; break; } // the first deposit ends the stretch
+    left = Math.min(left, from[i].balance);
+  }
+  return left >= 0 && left < LOW_UNTIL_PAYDAY ? { left, payday } : undefined;
+}
+
+/**
+ * Is this offer worth showing? A yes counts. So does paying for it without dropping a status, or a
+ * yellow-status shopper would never be shown anything. Red is never acceptable.
+ */
+export function fitsBudget(r: AffordResult): boolean {
+  if (r.verdict !== 'no') return true;
+  return r.missingInputs.length === 0 && r.liquid && r.after.overall !== 'red' && r.after.overall === r.before.overall;
 }
 export function canAfford(p: FinancialPicture, q: AffordQuestion, asOf: string): AffordResult {
   const date = q.date ?? asOf;
@@ -26,11 +47,13 @@ export function canAfford(p: FinancialPicture, q: AffordQuestion, asOf: string):
     const account = p.accounts.find((a) => a.id === q.sourceAccountId);
     const cashNow = account ? account.balance - p.reservations.filter((r) => r.sourceAccountId === account.id).reduce((s, r) => s + r.amount, 0) : 0;
     const liquid = !!low && low.balance >= 0 && (on !== asOf || q.cost <= cashNow);
-    return { after, liquid, low };
+    return { after, liquid, low, points: f.byAccount[q.sourceAccountId] };
   };
-  const { after, liquid, low } = interval >= 0 && interval <= 335 && source.valid ? evaluate(date) : { after: before, liquid: false, low: undefined };
+  const { after, liquid, low, points } = interval >= 0 && interval <= 335 && source.valid ? evaluate(date) : { after: before, liquid: false, low: undefined, points: undefined };
   const missingInputs = [...new Set([...missing, ...before.missingInputs, ...after.missingInputs])];
-  const base = { scoreBefore: before.score, scoreAfter: after.score, flags: after.flags, missingInputs, sourceAccountId: q.sourceAccountId, before, after };
+  const fromChecking = p.accounts.find((a) => a.id === q.sourceAccountId)?.type === 'Checking';
+  const thin = fromChecking && points && !missingInputs.length ? lowUntilPayday(points, date) : undefined;
+  const base = { scoreBefore: before.score, scoreAfter: after.score, flags: after.flags, missingInputs, sourceAccountId: q.sourceAccountId, liquid, ...(thin ? { lowUntilPayday: thin } : {}), before, after };
   if (missingInputs.length) return { ...base, verdict: 'no', reason: missingInputs.join(' ') };
   if (liquid && purchaseOk(before, after)) return { ...base, verdict: 'yes', reason: 'The selected account covers this purchase, scheduled expenses and existing commitments, and the resulting assessment is green.' };
   const problem = !liquid ? `The selected account cannot cover this purchase and its commitments${low ? ` (lowest balance on ${shortDate(low.date)})` : ''}.` : 'The resulting assessment is not green.';

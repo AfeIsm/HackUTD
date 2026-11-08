@@ -168,6 +168,9 @@ export interface AffordResult {
   flags: string[];
   missingInputs: string[];
   sourceAccountId: string;
+  liquid: boolean; // the chosen account stays non-negative on the asked date
+  // Set when paying from checking leaves little before the next deposit. payday null = none in the forecast.
+  lowUntilPayday?: { left: MoneyCents; payday: string | null };
   before: HealthResult;
   after: HealthResult;
   verifiedAlternative?: { date: string; sourceAccountId: string; result: HealthResult };
