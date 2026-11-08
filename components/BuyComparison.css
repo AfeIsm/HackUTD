@@ -30,7 +30,6 @@ dialog.buy-compare-dialog { width: min(1040px, calc(100vw - 28px)); max-width: n
 .buy-compare-card summary { width: fit-content; padding-block: 6px; font-weight: 600; }
 .buy-compare-card details ul { margin: 8px 0; padding-left: 17px; }
 .buy-compare-card a { display: inline-block; color: var(--note-ink); font-weight: 700; text-underline-offset: 3px; }
-.buy-compare-search-message { margin: 0; color: var(--muted-foreground); font-size: .8125rem; line-height: 1.5; }
 .buy-compare-chart-heading { margin: 0 0 12px; font-size: 1rem; font-weight: 600; }
 .buy-compare-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0 0 8px; font-size: .8125rem; }
 .buy-compare-legend > span { display: inline-flex; align-items: center; gap: 7px; }
@@ -41,6 +40,15 @@ dialog.buy-compare-dialog { width: min(1040px, calc(100vw - 28px)); max-width: n
 .buy-compare-readout time { font-weight: 700; }
 .buy-compare-slider { width: 100%; min-height: 32px; margin: 0; accent-color: var(--note-ink); }
 .buy-compare-chart-note { margin: 0; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; }
+.buy-compare-purchase-dates { display: flex; gap: 8px; overflow-x: auto; padding: 10px 2px 4px; }
+.buy-compare-purchase-dates button { display: inline-flex; flex: none; align-items: center; gap: 7px; max-width: 240px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--paper); color: var(--foreground); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.buy-compare-purchase-dates button[aria-pressed="true"] { border-color: var(--pnc-blue); background: color-mix(in oklab, var(--pnc-blue) 6%, var(--paper)); }
+.buy-compare-purchase-dates button > span { flex: none; color: var(--pnc-blue); font-weight: 700; }
+.buy-compare-purchase-list { padding-left: 0 !important; list-style: none; }
+.buy-compare-purchase-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; }
+.buy-compare-purchase-list li > span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.buy-compare-purchase-list small { color: var(--muted-foreground); }
+.buy-compare-purchase-list strong { flex: none; font-variant-numeric: tabular-nums; }
 .buy-compare-dialog-footer { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
 .buy-compare-activity { flex: 1; min-width: 0; font-size: .8125rem; }
 .buy-compare-activity summary { width: fit-content; padding-block: 12px; font-weight: 600; }

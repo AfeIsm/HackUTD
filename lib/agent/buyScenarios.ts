@@ -1,18 +1,20 @@
-import type { AffordResult, FinancialPicture, ForecastPoint } from '../types';
+import type { AffordResult, FinancialPicture, ForecastPoint, HealthResult, MoneyCents } from '../types';
 import type { BuyQuestion } from './buyOptions';
-import type { Proposal } from '../purchase/types';
-import { canAfford } from '../engine/afford';
+import { canAffordPurchases, MAX_PURCHASES, purchaseTotal } from '../engine/basket';
+import { scoreHealth } from '../engine/health';
 import { addDays, addMonths, daysBetween, nextSemiMonthly } from '../engine/dates';
 import { validDate } from '../engine/validation';
 
 export interface BuyScenario {
-  id: 'now' | 'payday' | 'cheaper';
+  id: 'now' | 'payday' | 'skip';
   title: string;
   question: BuyQuestion | null;
+  purchases: BuyQuestion[];
+  totalCost: MoneyCents | null;
   result: AffordResult | null;
   points: ForecastPoint[];
   lowest: ForecastPoint | null;
-  offer: Proposal | null;
+  baseline: HealthResult | null;
   unavailable: string | null;
 }
 
@@ -31,27 +33,39 @@ function nextPayday(picture: FinancialPicture, question: BuyQuestion, asOf: stri
   return null;
 }
 
-function liveLowerPrice(offer: Proposal, cost: number): boolean {
-  if (offer.demo || offer.kind !== 'product' || !Number.isSafeInteger(offer.total) || offer.total <= 0 || offer.total >= cost || !offer.link || offer.linkIsSearch) return false;
-  try { return ['https:', 'http:'].includes(new URL(offer.link).protocol); } catch { return false; }
-}
-
-export function buildBuyScenarios(picture: FinancialPicture, purchase: BuyQuestion, offers: Proposal[], asOf: string): BuyScenario[] {
-  const evaluate = (id: BuyScenario['id'], title: string, question: BuyQuestion, offer: Proposal | null = null): BuyScenario => {
-    const result = canAfford(picture, question, asOf);
-    const points = result.missingInputs.length ? [] : result.after.accountForecasts[question.sourceAccountId] ?? [];
+export function buildBuyScenarios(picture: FinancialPicture, purchase: BuyQuestion | BuyQuestion[], asOf: string): BuyScenario[] {
+  const purchases = Array.isArray(purchase) ? purchase : [purchase];
+  const first = purchases[0];
+  const multiple = purchases.length > 1;
+  const skipTitle = multiple ? "Don't buy any" : "Don't buy it";
+  const evaluate = (id: BuyScenario['id'], title: string, items: BuyQuestion[]): BuyScenario => {
+    const question = items[0] ?? null;
+    const result = canAffordPurchases(picture, items, asOf);
+    const points = result.missingInputs.length || !question ? [] : result.after.accountForecasts[question.sourceAccountId] ?? [];
     // Select an existing engine output for display; do not calculate new balances in the UI.
     const lowest = points.reduce<ForecastPoint | null>((low, point) => !low || point.balance < low.balance ? point : low, null);
-    return { id, title, question, result, points, lowest, offer, unavailable: null };
+    return { id, title, question, purchases: items, totalCost: purchaseTotal(items), result, points, lowest, baseline: null, unavailable: null };
   };
-  const unavailable = (id: BuyScenario['id'], title: string, reason: string): BuyScenario => ({ id, title, question: null, result: null, points: [], lowest: null, offer: null, unavailable: reason });
-  const payday = nextPayday(picture, purchase, asOf);
-  const offer = offers.filter((candidate) => liveLowerPrice(candidate, purchase.cost)).sort((a, b) => a.total - b.total)[0];
+  const unavailable = (id: BuyScenario['id'], title: string, reason: string): BuyScenario => ({ id, title, question: null, purchases: [], totalCost: id === 'skip' ? 0 : null, result: null, points: [], lowest: null, baseline: null, unavailable: reason });
+  const earliest = purchases.reduce<BuyQuestion | undefined>((early, item) => !early || item.date < early.date ? item : early, undefined);
+  const payday = earliest ? nextPayday(picture, earliest, asOf) : null;
+  const delayed = payday ? purchases.map((item) => item.date < payday ? { ...item, date: payday } : item) : null;
+  const ownAccount = first && picture.accounts.some((a) => a.id === first.sourceAccountId && a.ownerMemberId === picture.memberId && a.type !== 'Credit Card');
+  let skip = unavailable('skip', skipTitle, 'Choose an owned checking or savings account to see its forecast.');
+  const validPurchases = purchases.length > 0 && purchases.length <= MAX_PURCHASES && purchaseTotal(purchases) !== null && purchases.every((item) => item.sourceAccountId === first.sourceAccountId && (item.goalId ?? '') === (first.goalId ?? '') && validDate(item.date) && item.date >= asOf && daysBetween(asOf, item.date) <= 335);
+  if (ownAccount && validPurchases) {
+    const lastDate = [...purchases, ...(delayed ?? [])].reduce((last, item) => item.date > last ? item.date : last, asOf);
+    const days = Math.max(30, daysBetween(asOf, lastDate) + 30);
+    // No synthetic zero-cost purchase: ask the engine for the unchanged plan with no new outflow.
+    const baseline = scoreHealth(picture, { asOf, days });
+    const points = baseline.missingInputs.length ? [] : baseline.accountForecasts[first.sourceAccountId] ?? [];
+    const lowest = points.reduce<ForecastPoint | null>((low, point) => !low || point.balance < low.balance ? point : low, null);
+    skip = { id: 'skip', title: skipTitle, question: null, purchases: [], totalCost: 0, result: null, baseline, points, lowest, unavailable: null };
+  }
   return [
-    evaluate('now', purchase.date === asOf ? 'Buy now' : 'Buy as planned', purchase),
-    payday ? evaluate('payday', 'Wait for payday', { ...purchase, date: payday })
+    evaluate('now', multiple ? 'Buy all as planned' : first?.date === asOf ? 'Buy now' : 'Buy as planned', purchases),
+    delayed ? evaluate('payday', 'Wait for payday', delayed)
       : unavailable('payday', 'Wait for payday', 'No later payday is confirmed for this account in the supported forecast.'),
-    offer ? evaluate('cheaper', 'Buy cheaper', { ...purchase, label: offer.title, cost: offer.total }, offer)
-      : unavailable('cheaper', 'Buy cheaper', 'No live lower-priced product listing is available yet.'),
+    skip,
   ];
 }

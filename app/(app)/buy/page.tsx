@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { AffordResult } from '@/lib/types';
-import { canAfford } from '@/lib/engine/afford';
+import { canAffordPurchases, MAX_PURCHASES, purchaseTotal } from '@/lib/engine/basket';
+import { validDate } from '@/lib/engine/validation';
+import { daysBetween } from '@/lib/engine/dates';
 import { fundingOptions } from '@/lib/fundingOptions';
 import { parseMoney } from '@/lib/engine/money';
 import { IndicatorList } from '@/components/IndicatorList';
@@ -13,6 +15,7 @@ import { useViewer } from '@/lib/viewer';
 import { Card, Pill, btn, input } from '@/components/ui';
 import { PageShell } from '@/components/wallet/PageShell';
 import { BuyComparison } from '@/components/BuyComparison';
+import { PurchaseListEditor, type PurchaseDraft } from '@/components/PurchaseListEditor';
 import type { BuyQuestion } from '@/lib/agent/buyOptions';
 import './buy.css';
 
@@ -35,68 +38,54 @@ const VERDICT = {
   no: { label: 'Not right now', className: 'bg-bad-bg text-bad' },
 } as const;
 
-function headline(r: AffordResult): string {
+function headline(r: AffordResult, count: number): string {
   if (r.missingInputs.length) return 'A few details are missing.';
-  if (r.verdict === 'yes') return 'This fits your budget.';
+  if (r.verdict === 'yes') return count > 1 ? 'These purchases fit your budget together.' : 'This fits your budget.';
   if (r.verdict === 'yesIf' && r.weeklySavingsNeeded && r.readyDate)
     return `Yes, if you save ${money0(r.weeklySavingsNeeded)}/week. Ready ${shortDate(r.readyDate)}.`;
-  if (r.verdict === 'yesIf' && r.readyDate) return `Wait until your ${shortDate(r.readyDate)} paycheck.`;
-  return r.flags.some((f) => f.includes('emergency')) ? 'Keep your emergency savings protected.' : 'Give this purchase a little more time.';
+  if (r.verdict === 'yesIf' && r.readyDate) return count > 1 ? `Wait until ${shortDate(r.readyDate)} for the earlier purchases.` : `Wait until your ${shortDate(r.readyDate)} paycheck.`;
+  return r.flags.some((f) => f.includes('emergency')) ? 'Keep your emergency savings protected.' : count > 1 ? 'Give this purchase plan a little more time.' : 'Give this purchase a little more time.';
 }
 
 export default function BuyPage() {
   const { person } = useViewer();
   const loaded = usePicture(person.id);
-  const [q, setQ] = useState<Question>(EXAMPLES[0]);
-  const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
-  const [askedQuestion, setAskedQuestion] = useState<BuyQuestion | null>(null);
+  const [items, setItems] = useState<PurchaseDraft[]>([{ id: 'first-purchase', label: EXAMPLES[0].label, cost: EXAMPLES[0].cost, date: EXAMPLES[0].date }]);
+  const [from, setFrom] = useState('checking');
+  const [asked, setAsked] = useState<{ memberId: string; items: PurchaseDraft[]; from: string; purchases: BuyQuestion[] } | null>(null);
   const answerHeading = useRef<HTMLHeadingElement>(null);
-
   const picture = loaded.status === 'ready' ? loaded.picture : null;
   const options = picture ? fundingOptions(picture) : [];
-  const selected = options.find((o) => o.value === q.from) ?? options[0];
-  const askedQ = asked?.memberId === person.id ? asked.q : null;
+  const selected = options.find((o) => o.value === from) ?? options[0];
+  const current = asked?.memberId === person.id ? asked : null;
+  const purchases = current?.purchases ?? null;
+  const amount = purchaseTotal(items.map((item) => ({ cost: parseMoney(item.cost) ?? NaN })));
+  const valid = !!selected && items.length > 0 && items.length <= MAX_PURCHASES && amount !== null && amount > 0 && items.every((item) =>
+    item.label.trim().length >= 2 && item.label.trim().length <= 60 && validDate(item.date) && item.date >= DEMO_ASOF && daysBetween(DEMO_ASOF, item.date) <= 335);
+  const result = picture && purchases ? canAffordPurchases(picture, purchases, DEMO_ASOF) : null;
+  const askedAmount = purchases ? purchaseTotal(purchases) : null;
+  const askedFunding = options.find((o) => o.value === current?.from);
+  const askedAccount = picture?.accounts.find((a) => a.id === askedFunding?.sourceAccountId);
+  const edited = current && (JSON.stringify(items) !== JSON.stringify(current.items) || selected?.value !== current.from);
 
   useEffect(() => {
     if (asked?.memberId === person.id) answerHeading.current?.focus();
   }, [asked, person.id]);
 
-  let result: AffordResult | null = null;
-  if (picture && askedQ && Number(askedQ.cost) > 0) {
-    const funding = options.find((o) => o.value === askedQ.from);
-    result = canAfford(
-      picture,
-      {
-        label: askedQ.label || 'this',
-        cost: parseMoney(askedQ.cost) ?? NaN,
-        date: askedQ.date || undefined,
-        sourceAccountId: funding?.sourceAccountId ?? '',
-        goalId: funding?.goalId,
-      },
-      DEMO_ASOF,
-    );
-  }
-
-  const ask = (next: Question) => {
-    const funding = options.find((o) => o.value === next.from)
-      ?? options.find((o) => picture?.accounts.find((a) => a.id === o.sourceAccountId)?.type === (next.from === 'free' ? 'Savings' : 'Checking'));
-    const normalized = { ...next, from: funding?.value ?? '' };
-    setQ(normalized);
-    setAsked({ memberId: person.id, q: normalized });
-    const cost = parseMoney(normalized.cost) ?? 0;
-    const label = normalized.label.trim();
-    if (funding && cost > 0 && label.length >= 2 && normalized.date) {
-      const question = { label, cost, date: normalized.date, sourceAccountId: funding.sourceAccountId, goalId: funding.goalId };
-      setAskedQuestion(question);
-    } else setAskedQuestion(null);
+  const preview = (nextItems: PurchaseDraft[], requestedFrom: string) => {
+    const funding = options.find((o) => o.value === requestedFrom)
+      ?? (['checking', 'free'].includes(requestedFrom) ? options.find((o) => picture?.accounts.find((a) => a.id === o.sourceAccountId)?.type === (requestedFrom === 'free' ? 'Savings' : 'Checking')) : undefined);
+    if (!funding || !nextItems.length || nextItems.length > MAX_PURCHASES) return;
+    const normalized = nextItems.map((item) => ({ ...item, label: item.label.trim() }));
+    const next: BuyQuestion[] = normalized.map((item) => ({ label: item.label, cost: parseMoney(item.cost) ?? NaN, date: item.date, sourceAccountId: funding.sourceAccountId, ...(funding.goalId ? { goalId: funding.goalId } : {}) }));
+    if (purchaseTotal(next) === null || next.some((item) => item.label.length < 2 || !validDate(item.date) || item.date < DEMO_ASOF || daysBetween(DEMO_ASOF, item.date) > 335)) return;
+    setItems(normalized);
+    setFrom(funding.value);
+    setAsked({ memberId: person.id, items: normalized, from: funding.value, purchases: next });
   };
 
-  const askedFunding = options.find((o) => o.value === askedQ?.from);
-  const askedAccount = picture?.accounts.find((a) => a.id === askedFunding?.sourceAccountId);
-  const edited = askedQ && (q.label !== askedQ.label || q.cost !== askedQ.cost || q.date !== askedQ.date || selected?.value !== askedQ.from);
-
   return (
-    <PageShell id="buy" eyebrow="Before you buy" title="Can I buy it?" intro="A little clarity before checkout. See how a purchase fits your money.">
+    <PageShell id="buy" eyebrow="Before you buy" title="Can I buy it?" intro="A little clarity before checkout. See how your purchases fit your money together.">
 
       {loaded.status !== 'ready' || !picture ? (
         <Card>
@@ -111,48 +100,33 @@ export default function BuyPage() {
             aria-label="Purchase question"
             onSubmit={(e) => {
               e.preventDefault();
-              ask({ ...q, from: selected?.value ?? '' });
+              if (valid) preview(items, selected?.value ?? '');
             }}
           >
             <div className="buy-form-heading">
               <span className="buy-step" aria-hidden="true">01</span>
               <div>
-                <h2 className="m-0">Your next purchase</h2>
-                <p className="buy-caption">Start with something on your wishlist.</p>
+                <h2 className="m-0">Your purchase plan</h2>
+                <p className="buy-caption">Add an item and a date for each purchase.</p>
               </div>
             </div>
+            <PurchaseListEditor items={items} onChange={setItems} asOf={DEMO_ASOF} />
+            <div className="buy-basket-total"><span>Combined purchase total</span><strong>{amount === null ? '—' : money(amount)}</strong></div>
             <label className="buy-field">
-              What are you buying?
-              <input className={input} required minLength={2} maxLength={60} value={q.label} onChange={(e) => setQ({ ...q, label: e.target.value })} placeholder="PlayStation 6" />
-            </label>
-            <div className="buy-form-pair">
-              <label className="buy-field">
-                Price (USD)
-                <span className="buy-price-field">
-                  <span aria-hidden="true">$</span>
-                  <input className="buy-price-input" inputMode="decimal" required value={q.cost} onChange={(e) => setQ({ ...q, cost: e.target.value })} placeholder="0.00" />
-                </span>
-              </label>
-              <label className="buy-field">
-                Purchase date
-                <input className={input} type="date" value={q.date} min={DEMO_ASOF} onChange={(e) => setQ({ ...q, date: e.target.value })} />
-              </label>
-            </div>
-            <label className="buy-field">
-              Pay from
-              <select className={input} value={selected?.value ?? ''} onChange={(e) => setQ({ ...q, from: e.target.value })}>
+              {items.length > 1 ? 'Pay for these purchases from' : 'Pay from'}
+              <select className={input} value={selected?.value ?? ''} onChange={(e) => setFrom(e.target.value)}>
                 {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
-            <button type="submit" className={`${btn} buy-submit`} disabled={q.label.trim().length < 2 || !q.date || !selected || (parseMoney(q.cost) ?? 0) <= 0}>
-              Check this purchase <span aria-hidden="true">→</span>
+            <button type="submit" className={`${btn} buy-submit`} disabled={!valid}>
+              {items.length > 1 ? 'Check all purchases' : 'Check this purchase'} <span aria-hidden="true">→</span>
             </button>
             <p className="buy-form-note">A preview of your budget. No purchase is made.</p>
             <div className="buy-examples">
               <span className="buy-caption">Or try an example</span>
               <div className="buy-example-list">
                 {EXAMPLES.map((ex) => (
-                  <button key={ex.chip} type="button" onClick={() => ask(ex)} className="buy-example">
+                  <button key={ex.chip} type="button" onClick={() => preview([{ id: crypto.randomUUID(), label: ex.label, cost: ex.cost, date: ex.date }], ex.from)} className="buy-example">
                     {ex.chip}<span aria-hidden="true">↗</span>
                   </button>
                 ))}
@@ -172,8 +146,8 @@ export default function BuyPage() {
                     <path d="m41 54 4 4 8-8" />
                   </svg>
                 </div>
-                <h2>Will it fit your budget?</h2>
-                <p>Enter a purchase to see your answer and how it changes your score.</p>
+                <h2>Will your plan fit your budget?</h2>
+                <p>Add one or more purchases to see their combined effect on your money and score.</p>
                 <div className="buy-check-tags"><span>Upcoming bills</span><span>Savings goals</span><span>Score impact</span></div>
               </div>
             ) : (
@@ -181,17 +155,18 @@ export default function BuyPage() {
                 <div className="buy-receipt">
                   <div className="buy-receipt-item">
                     <span className="buy-caption">Purchase preview</span>
-                    <strong>{askedQ?.label}</strong>
-                    <span className="buy-caption">{askedQ && shortDate(askedQ.date)}{askedAccount && ` · ${askedAccount.nickname}`}</span>
+                    <strong>{purchases?.length === 1 ? purchases[0].label : `${purchases?.length ?? 0} purchases`}</strong>
+                    <span className="buy-caption">{purchases?.length === 1 ? shortDate(purchases[0].date) : 'Each purchase keeps its selected date'}{askedAccount && ` · ${askedAccount.nickname}`}</span>
                   </div>
-                  <strong className="buy-receipt-price">{money(parseMoney(askedQ?.cost ?? '') ?? 0)}</strong>
+                  <strong className="buy-receipt-price">{askedAmount === null ? '—' : money(askedAmount)}</strong>
                 </div>
+                {purchases && purchases.length > 1 && <ul className="buy-planned-items">{purchases.map((item, index) => <li key={current!.items[index].id}><span>{item.label}<small>{shortDate(item.date)}</small></span><strong>{money(item.cost)}</strong></li>)}</ul>}
                 {edited && <p className="buy-edited" role="status">Details changed. Check again to update your answer.</p>}
                 <div className="buy-verdict" data-verdict={result.missingInputs.length ? 'needsInput' : result.verdict}>
                   <Pill className={`${result.missingInputs.length ? 'bg-soft text-muted' : VERDICT[result.verdict].className} px-3 py-1.5 text-sm`}>
                     {result.missingInputs.length ? 'Needs input' : VERDICT[result.verdict].label}
                   </Pill>
-                  <h2 ref={answerHeading} tabIndex={-1}>{headline(result)}</h2>
+                  <h2 ref={answerHeading} tabIndex={-1}>{headline(result, purchases?.length ?? 1)}</h2>
                 </div>
                 {result.lowUntilPayday && (
                   <p role="status" className="m-0 rounded-[10px] bg-warn-bg px-3.5 py-3 text-sm text-warn">
@@ -203,13 +178,13 @@ export default function BuyPage() {
                   <ScoreBox label="Score now" value={result.scoreBefore} />
                   <span className="buy-score-arrow" aria-hidden="true">→</span>
                   <ScoreBox
-                    label={result.verdict === 'yes' ? 'Score after buying' : 'If you bought it now'}
-                    value={result.scoreAfter}
+                    label={purchases && purchases.length > 1 ? 'With all purchases' : 'Score after buying'}
+                    value={result.missingInputs.length ? null : result.scoreAfter}
                     tone={result.after.overall === 'green' ? 'good' : result.after.overall === 'red' ? 'bad' : 'warn'}
                   />
                 </div>
-                {askedQ && askedQuestion && <BuyComparison key={`${person.id}|${JSON.stringify(askedQuestion)}|${result?.before.dataHash}`} picture={picture} purchase={askedQuestion} />}
-                {result.verifiedAlternative && <p className="rounded-lg bg-good-bg p-3">Verified alternative score: {result.verifiedAlternative.result.score} on {shortDate(result.verifiedAlternative.date)}.</p>}
+                {purchases && <BuyComparison key={`${person.id}|${JSON.stringify(purchases)}|${result.before.dataHash}`} picture={picture} purchases={purchases} />}
+                {result.verifiedAlternative && <p className="rounded-lg bg-good-bg p-3">Verified alternative score: {result.verifiedAlternative.result.score ?? 'Needs input'} on {shortDate(result.verifiedAlternative.date)}.</p>}
                 {result.missingInputs.length > 0 && <div className="buy-missing"><h3>Complete your check</h3><ul>{result.missingInputs.map((m) => <li key={m}>{m}</li>)}</ul></div>}
                 {result.flags.length > 0 && (
                   <ul className="m-0 flex list-none flex-col gap-2 p-0">
