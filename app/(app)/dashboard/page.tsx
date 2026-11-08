@@ -19,6 +19,7 @@ import { FixPlanCard } from '@/components/FixPlanCard';
 import { AgentPanel } from '@/components/AgentPanel';
 import { SavingsGoals } from '@/components/SavingsGoals';
 import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
+import { PageShell } from '@/components/wallet/PageShell';
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const { person } = useViewer();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
   const [note, setNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   // Load the latest saved health check (runs a first one if there's none)
@@ -44,7 +46,7 @@ export default function DashboardPage() {
     return () => {
       alive = false;
     };
-  }, [person.id]);
+  }, [person.id, reload]);
 
   const current = loaded?.id === person.id ? loaded : null;
   const payload = current?.payload;
@@ -91,13 +93,14 @@ export default function DashboardPage() {
       ? 'Loading your accounts…'
       : current.error ?? `${person.name} doesn’t have any accounts yet, so there’s nothing to score.`;
     return (
-      <>
-        <PageTitle name={person.name} />
+      <PageShell id="money" eyebrow="My Money" title={<>Hi {person.name}, here’s your money today</>}
+        intro={<span className="sample-badge">Synthetic demo finances</span>}>
         <Card>
-          <p className="m-0 text-ink-2" aria-live="polite">{message}</p>
-          {randomizeControl}
+          <p className="m-0 text-ink-2" role={current?.error ? 'alert' : 'status'}>{message}</p>
+          {current?.error && <button type="button" className={`${btn2} mt-4`} onClick={() => { setLoaded(null); setReload((n) => n + 1); }}>Try again</button>}
+          {current && !current.error && <div className="mt-4">{randomizeControl}</div>}
         </Card>
-      </>
+      </PageShell>
     );
   }
 
@@ -118,9 +121,13 @@ export default function DashboardPage() {
   const added = picture.txns.filter((t) => t.id.startsWith('app-'));
 
   return (
-    <>
-      <PageTitle name={person.name} />
-      {randomizeControl}
+    <PageShell id="money" eyebrow="My Money" title={<>Hi {person.name}, here’s your money today</>}
+      intro={<span className="flex flex-wrap items-center gap-3">
+        <span className="sample-badge">Synthetic demo finances</span>
+        <span>{payload.source === 'nessie' ? 'Connected to Nessie' : payload.source === 'stale' ? 'Saved snapshot · bank refresh unavailable' : 'Offline demo snapshot'} · last check <time dateTime={result.checkedAt}>{new Date(result.checkedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></span>
+      </span>}
+      actions={<div className="max-w-sm">{randomizeControl}</div>}>
+      <div className="grid gap-6">
 
       {result.missingInputs.length > 0 && (
         <Card label="Complete your assessment">
@@ -144,8 +151,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-stretch gap-5">
-        <Card label="Health score" className="flex flex-[1_1_300px] flex-col items-center gap-4 text-center">
+      <section aria-label="Financial health" className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <Card label="Health score" className="flex flex-col items-center gap-4 text-center">
           <Eyebrow className="self-start">Health score</Eyebrow>
           <ScoreGauge score={result.score} status={result.overall} />
           <StatusPill status={result.overall} />
@@ -153,7 +160,7 @@ export default function DashboardPage() {
             Score {result.score ?? 'incomplete'} · checked {timeLabel(result.checkedAt)} · after: {result.trigger}
           </p>
           {shownNote && (
-            <p className={`m-0 rounded-lg px-3 py-2 text-[13px] ${shownNote.ok ? 'bg-good-bg text-good' : 'bg-bad-bg text-bad'}`}>{shownNote.text}</p>
+            <p role={shownNote.ok ? 'status' : 'alert'} className={`m-0 rounded-lg px-3 py-2 text-[13px] ${shownNote.ok ? 'bg-good-bg text-good' : 'bg-bad-bg text-bad'}`}>{shownNote.text}</p>
           )}
           <button type="button" className={`${btn2} mt-auto w-full`} onClick={rerun} disabled={busy}>
             {busy ? 'Checking…' : 'Re-run health check'}
@@ -161,9 +168,9 @@ export default function DashboardPage() {
           <span className="text-xs text-muted">{payload.saved ? 'Every check is saved to your history.' : 'History isn’t being saved right now.'}</span>
         </Card>
 
-        <Card label="Indicators" className="flex min-w-0 flex-[999_1_560px] flex-col gap-1">
+        <Card label="Indicators" className="flex min-w-0 flex-col gap-1">
           <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h2 className="m-0 text-xl">What makes up your score</h2>
+            <h2 className="section-title m-0">What makes up your score</h2>
             <span className="text-[13px] text-muted">points × weight</span>
           </div>
           <IndicatorList indicators={result.indicators} />
@@ -171,41 +178,12 @@ export default function DashboardPage() {
             Healthy 75–100 · Watch 50–74 · At risk 0–49. If essential bills aren’t covered, the score is At risk no matter what.
           </p>
         </Card>
-      </div>
+      </section>
 
       {payload.plan && <FixPlanCard key={payload.plan.dataHash} plan={payload.plan} onApplied={applied} />}
       <AgentPanel onApplied={applied} />
 
-      <div className="flex flex-wrap items-start gap-5">
-        <Card label="Add a purchase" className="min-w-0 flex-[999_1_520px]">
-          <h2 className="m-0 mb-3 text-xl">Add a purchase</h2>
-          <AddPurchase picture={picture} onAdd={addPurchase} />
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="m-0 text-xs text-muted">Your health check re-runs automatically.</p>
-            {added.length > 0 && (
-              <button type="button" onClick={clearPurchases} disabled={busy} className="cursor-pointer border-0 bg-transparent p-1 text-xs font-semibold text-accent">
-                Clear {added.length} added {added.length === 1 ? 'purchase' : 'purchases'}
-              </button>
-            )}
-          </div>
-        </Card>
-        {payload.history.length > 0 && (
-          <Card label="Recent checks" className="flex min-w-0 flex-[1_1_300px] flex-col gap-2">
-            <h2 className="m-0 text-xl">Recent checks</h2>
-            <ul className="m-0 flex list-none flex-col p-0">
-              {payload.history.map((h, i) => (
-                <li key={`${h.createdAt}-${i}`} className="flex items-center gap-3 border-t border-[#EFEFEA] py-2 text-[13px]">
-                  <span className={`w-8 font-display text-base font-bold ${TONE[h.overall].pill.split(' ')[1]}`}>{h.score ?? '—'}</span>
-                  <span className="min-w-0 flex-1 truncate text-ink-2">{h.trigger}</span>
-                  <span className="text-muted">{timeLabel(h.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-      </div>
-
-      <section aria-label="Accounts" className="flex flex-wrap gap-4">
+      <section aria-label="Accounts" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {checking.map((a) => (
           <SmallCard key={a.id} label={a.nickname} value={money(a.balance)} sub="Everyday spending" />
         ))}
@@ -222,6 +200,9 @@ export default function DashboardPage() {
           value={picture.paycheck ? money0(picture.paycheck.avgAmount) : '—'}
           sub={picture.paycheck ? `Every ${picture.paycheck.cadenceDays} days · next ${dayDate(picture.paycheck.nextDate)}` : 'No regular paycheck found'}
         />
+        <SmallCard label="Savings goals"
+          value={picture.goals.length === 1 ? `${picture.goals[0].name} · ${money0(picture.goals[0].amount)}` : picture.goals.length ? `${picture.goals.length} goals` : 'None yet'}
+          sub={picture.goals.length ? 'Set aside in your savings accounts' : 'Set money aside for a goal below'} small />
       </section>
 
       <SavingsGoals
@@ -231,44 +212,64 @@ export default function DashboardPage() {
         onRemove={(id) => void send('/api/goals', 'DELETE', { id }, () => 'Goal removed. The money is back in your free savings.')}
       />
 
-      <div className="flex flex-wrap items-start gap-5">
-        <Card label="Forecast" className="flex min-w-0 flex-[1_1_420px] flex-col gap-3">
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+        <Card label="Forecast" className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="m-0 text-xl">Next 30 days in checking</h2>
+            <h2 className="section-title m-0">Next 30 days in checking</h2>
             <span className="text-[13px] text-muted">paychecks minus bills</span>
           </div>
+          {checking.length === 0 && <p className="text-sm text-muted">No checking accounts are available for forecasting.</p>}
           {checking.map((a) => (
             <div key={a.id}>
               {checking.length > 1 && <h3 className="text-sm">{a.nickname}</h3>}
-              <ForecastChart points={result.accountForecasts[a.id] ?? []} />
+              {(result.accountForecasts[a.id]?.length ?? 0) > 1
+                ? <ForecastChart points={result.accountForecasts[a.id]} />
+                : <p className="text-sm text-muted">Needs input — a forecast is not available for {a.nickname} yet.</p>}
             </div>
           ))}
         </Card>
-        <Card label="Bills and subscriptions" className="min-w-0 flex-[1_1_420px]">
+        <Card label="Bills and subscriptions" className="min-w-0">
           <ObligationsList obligations={picture.obligations} onToggle={toggleTag} />
         </Card>
       </div>
-    </>
-  );
-}
-
-function PageTitle({ name }: { name: string }) {
-  return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="flex flex-col gap-1.5">
-        <Eyebrow>My Money</Eyebrow>
-        <h1 className="m-0 text-[32px]">Hi {name}, here’s your money today</h1>
+      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <Card label="Add a purchase" className="min-w-0">
+          <h2 className="section-title m-0 mb-4">Add a purchase</h2>
+          <AddPurchase picture={picture} onAdd={addPurchase} />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="m-0 text-xs text-muted">Your health check re-runs automatically.</p>
+            {added.length > 0 && (
+              <button type="button" onClick={clearPurchases} disabled={busy} className="cursor-pointer border-0 bg-transparent p-1 text-xs font-semibold text-accent">
+                Clear {added.length} added {added.length === 1 ? 'purchase' : 'purchases'}
+              </button>
+            )}
+          </div>
+        </Card>
+        <Card label="Recent checks" className="flex min-w-0 flex-col gap-2">
+            <h2 className="section-title m-0">Recent checks</h2>
+            {payload.history.length === 0 && <p className="text-sm text-muted">{payload.saved ? 'Your saved checks will appear here.' : 'Check history is unavailable right now.'}</p>}
+            <ul className="m-0 flex list-none flex-col p-0">
+              {payload.history.map((h, i) => (
+                <li key={`${h.createdAt}-${i}`} className="flex items-center gap-3 border-t border-[#EFEFEA] py-2 text-[13px]">
+                  <span className={`w-8 font-display text-base font-bold ${TONE[h.overall].pill.split(' ')[1]}`}>{h.score ?? '—'}</span>
+                  <span className="min-w-0 flex-1 truncate text-ink-2">{h.trigger}</span>
+                  <time className="text-muted" dateTime={h.createdAt} title={new Date(h.createdAt).toLocaleString()}>{timeLabel(h.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+        </Card>
       </div>
-      <p className="m-0 text-sm text-muted">Synced with your bank</p>
-    </div>
+
+      </div>
+    </PageShell>
   );
 }
 
 function SmallCard({ label, value, sub, small = false }: { label: string; value: string; sub: string; small?: boolean }) {
   return (
-    <div className="box-border flex flex-[1_1_200px] flex-col gap-1.5 rounded-[14px] border border-line bg-surface p-5">
+    <div className="paper-card compact flex min-w-0 flex-col gap-2">
       <Eyebrow>{label}</Eyebrow>
-      <span className={`font-display font-semibold ${small ? 'text-xl' : 'text-[28px]'}`}>{value}</span>
+      <span className={`font-display font-semibold ${small ? 'text-xl' : 'text-3xl'} tabular-nums`}>{value}</span>
       <span className="text-[13px] text-muted">{sub}</span>
     </div>
   );

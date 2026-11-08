@@ -6,7 +6,8 @@ import { useConnections, sendConnectionChange } from '@/lib/useConnections';
 import { AddByUsername } from '@/components/AddByUsername';
 import { PersonRow } from '@/components/PersonRow';
 import { RequestCards } from '@/components/RequestCards';
-import { Card, Eyebrow, Pill } from '@/components/ui';
+import { Card, Pill } from '@/components/ui';
+import { PageShell } from '@/components/wallet/PageShell';
 
 export default function FriendsPage() {
   const conn = useConnections();
@@ -24,35 +25,34 @@ export default function FriendsPage() {
   const sent = (data?.sent ?? []).filter((r) => r.kind === 'friend' && r.status !== 'accepted' && !friendIds.has(r.to.userId));
 
   return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        <Eyebrow>People outside your household</Eyebrow>
-        <h1 className="m-0 text-[32px]">Friends</h1>
-        <p className="m-0 text-ink-2">Friends see your pledge amount only after everyone commits. Never your balances, bills or score.</p>
-      </div>
-
+    <PageShell id="friends" eyebrow="People outside your household" title="Friends"
+      intro="Friends see your pledge amount only after everyone commits. Never your balances, bills or score.">
+      <div className="grid gap-6">
       {data && <RequestCards requests={data.incoming} />}
 
-      <div className="flex flex-wrap items-start gap-5">
+      <div className="grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
         <AddByUsername
           kind="friend"
           title="Add a friend by username"
           help="Type their exact username. They get the request on their own device and have to accept."
         />
 
-        <Card label="Your friends" className="flex min-w-0 flex-[999_1_480px] flex-col gap-1">
-          <h2 className="m-0 mb-2 text-[22px]">Your friends</h2>
+        <Card label="Your friends" className="min-w-0">
+          <h2 className="section-title font-display">Your friends</h2>
           {error && <p role="alert" className="m-0 text-sm text-bad">{error}</p>}
           {conn.status === 'loading' && <p className="m-0 text-muted">Loading…</p>}
           {conn.status === 'error' && <p className="m-0 text-bad">Couldn’t load your friends. Refresh to try again.</p>}
           {data && data.friends.length === 0 && sent.length === 0 && <p className="m-0 text-ink-2">No friends yet. Add someone by username.</p>}
           {data?.friends.map((f) => (
             <PersonRow key={f.userId} person={f} right={
-              <button type="button" disabled={removing !== null || !f.userId} aria-label={`Remove ${f.name} as a friend`}
-                className="min-h-11 cursor-pointer rounded-[10px] px-3 text-sm font-semibold text-bad hover:bg-bad-bg disabled:cursor-wait disabled:opacity-50"
-                onClick={() => { if (f.userId) void remove(f.userId); }}>
-                {removing === f.userId ? 'Removing…' : 'Remove friend'}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill className="pill-healthy">Accepted</Pill>
+                <button type="button" disabled={removing !== null || !f.userId} aria-label={`Remove ${f.name} as a friend`}
+                  className="min-h-11 cursor-pointer rounded-[10px] px-3 text-sm font-semibold text-bad hover:bg-bad-bg disabled:cursor-wait disabled:opacity-50"
+                  onClick={() => { if (f.userId) void remove(f.userId); }}>
+                  {removing === f.userId ? 'Removing…' : 'Remove friend'}
+                </button>
+              </div>
             } />
           ))}
           {sent.map((r) => (
@@ -60,15 +60,16 @@ export default function FriendsPage() {
               key={r.id}
               person={r.to}
               right={
-                <Pill className={r.status === 'pending' ? 'bg-warn-bg text-warn' : 'bg-hover text-muted'}>
+                <Pill className={r.status === 'pending' ? 'pill-watch' : 'pill-needsInput'}>
                   {r.status === 'pending' ? 'Request sent' : 'Declined'}
                 </Pill>
               }
             />
           ))}
-          <Link href="/huddles" className="mt-2 text-sm font-semibold">Plan something together →</Link>
+          <Link href="/huddles" className="mt-4 inline-block font-semibold hover:underline">Plan something together →</Link>
         </Card>
       </div>
-    </>
+      </div>
+    </PageShell>
   );
 }

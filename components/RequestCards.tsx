@@ -20,7 +20,7 @@ export function RequestCards({ requests }: { requests: ConnectionRequest[] }) {
   return (
     <>
       {requests.map((r) => (
-        <section key={r.id} aria-label="Request" className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-[#BFD0F5] bg-accent-bg p-6">
+        <section key={r.id} aria-label="Request" className="paper-card flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <Eyebrow className="text-[#1A3E9E]">{r.kind === 'household' ? 'Household invite' : 'Friend request'}</Eyebrow>
             <strong className="text-[19px]">

@@ -12,7 +12,7 @@ function Hint({ tone, children }: { tone: 'good' | 'bad' | 'muted'; children: st
   return <p className={`m-0 text-[13px] ${color}`} aria-live="polite">{children}</p>;
 }
 
-export function SignupForm() {
+export function SignupForm({ returnTo = '/' }: { returnTo?: string }) {
   const [form, setForm] = useState<Record<Fields, string>>({ name: '', username: '', email: '', password: '' });
   const [serverError, setServerError] = useState<{ field?: string; error: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export function SignupForm() {
         setBusy(false);
         return;
       }
-      window.location.assign(safeNext(new URLSearchParams(window.location.search).get('next')));
+      window.location.assign(safeNext(returnTo));
     } catch {
       setServerError({ error: 'Couldn’t reach the server. Try again.' });
       setBusy(false);

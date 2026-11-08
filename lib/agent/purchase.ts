@@ -164,7 +164,7 @@ async function run(h: Huddle, brief: PurchaseBrief, runId: string, step: (t: Age
 
   async function saveWith(picks: { k: Known; why: unknown }[], summary: unknown) {
     const proposals = picks.slice(0, MAX_PROPOSALS).map((p, i) => toProposal(p.k, runId, i + 1, p.why, brief.category === 'trip' ? budget : null));
-    
+
     // Reviewer Agent audit on final proposals
     const audit = reviewPurchaseProposals({
       proposals: proposals.map((pr) => ({ title: pr.title, total: pr.total, why: pr.why })),

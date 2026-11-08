@@ -17,9 +17,9 @@ export function reviewPurchaseProposals(input: PurchaseAuditInput): ReviewResult
 
   let verdictMatchesEngine = true;
   let safetyRulesCompliant = true;
-  let noInventedNumbers = true;
-  let entitiesExistInUserData = true;
-  let noProtectedSavingsTouched = true;
+  const noInventedNumbers = true;
+  const entitiesExistInUserData = true;
+  const noProtectedSavingsTouched = true;
 
   // 1. Check if proposals exceed the group limit
   if (input.groupSafeLimit !== undefined) {

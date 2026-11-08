@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { FinancialPicture } from '../../types';
+import type { AgentStep, FinancialPicture } from '../../types';
 import { runAgent } from '../../agent/loop';
 
 // Mock nemotron client so we can test what runAgent outputs with and without reviewer guardrails
@@ -59,7 +59,7 @@ describe('Agent Pipeline Edge Cases (Integration)', () => {
   it('Edge Case: Verifies that runAgent plan outputs a reviewer audit stamp and safety approval', async () => {
     // When called, runAgent produces an AgentAnswer.
     // If reviewer is active, answer.plan.review MUST exist and be approved.
-    const steps: any[] = [];
+    const steps: AgentStep[] = [];
     const answer = await runAgent(
       mockPicture,
       'Can I buy a $5 coffee?',
@@ -70,8 +70,8 @@ describe('Agent Pipeline Edge Cases (Integration)', () => {
 
     // This expectation tests whether the reviewer agent is actively attached to runAgent
     expect(answer.plan).toBeDefined();
-    expect((answer.plan as any)?.review).toBeDefined();
-    expect((answer.plan as any)?.review?.approved).toBe(true);
+    expect(answer.plan?.review).toBeDefined();
+    expect(answer.plan?.review?.approved).toBe(true);
     expect(steps.some((s) => s.tool === 'reviewer_agent')).toBe(true);
   });
 });

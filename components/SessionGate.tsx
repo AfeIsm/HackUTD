@@ -4,12 +4,17 @@
 // and explains when an account has no money data yet (new sign-ups until step 6).
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { logout, useMe } from '@/lib/useMe';
+import { useMe } from '@/lib/useMe';
 import { Card } from './ui';
 import { btn2 } from './ui';
+import { PageShell } from './wallet/PageShell';
+import { useWallet } from './wallet/WalletContext';
+import { CARDS } from './wallet/cards';
 
 export function SessionGate({ children }: { children: ReactNode }) {
   const me = useMe();
+  const { activeCard } = useWallet();
+  const id = activeCard ?? 'money';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,20 +41,19 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }, [me.status]);
 
   if (me.status === 'loading' || me.status === 'out') {
-    return <p className="m-0 text-muted">{me.status === 'out' ? 'Taking you to log in…' : 'Loading…'}</p>;
+    return <PageShell id={id} title={CARDS[id].title}><p className="m-0 text-muted" role="status">{me.status === 'out' ? 'Taking you to log in…' : 'Loading…'}</p></PageShell>;
   }
   if (me.status === 'error') {
     return (
-      <Card>
+      <PageShell id={id} title={CARDS[id].title}><Card>
         <p className="m-0 text-ink-2">Couldn’t check your login. Refresh to try again.</p>
-      </Card>
+      </Card></PageShell>
     );
   }
   const memberId = me.user.memberId;
   if (!memberId) {
     return (
-      <Card className="flex max-w-[560px] flex-col gap-3">
-        <h1 className="m-0 text-[28px]">Welcome, {me.user.name}</h1>
+      <PageShell id={id} title={`Welcome, ${me.user.name}`}><Card className="flex max-w-[560px] flex-col gap-3">
         <p className="m-0 text-ink-2">
           Your account <strong>@{me.user.username}</strong> is set up, but it isn’t linked to any bank accounts yet, so
           there’s nothing to score.
@@ -59,13 +63,8 @@ export function SessionGate({ children }: { children: ReactNode }) {
         <button type="button" className={btn2} disabled={busy} onClick={() => void setup()}>
           {busy ? 'Setting up demo finances…' : 'Set up demo finances'}
         </button>
-        <div>
-          <button type="button" className={btn2} onClick={() => void logout()}>
-            Log out
-          </button>
-        </div>
-      </Card>
+      </Card></PageShell>
     );
   }
-  return <>{memberId.startsWith('user-') && <p className="m-0 text-sm text-muted">Demo finances · synthetic Nessie banking data · assessment date November 7, 2026</p>}{children}</>;
+  return <>{children}</>;
 }

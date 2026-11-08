@@ -5,7 +5,7 @@ import { btn, input } from '@/components/ui';
 import { Field } from '@/components/AuthShell';
 import { safeNext } from '@/lib/auth/validate';
 
-export function LoginForm() {
+export function LoginForm({ returnTo = '/' }: { returnTo?: string }) {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export function LoginForm() {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error || 'Couldn’t log in. Try again.');
       // Full page load so every page starts fresh as the new user.
-      window.location.assign(safeNext(new URLSearchParams(window.location.search).get('next')));
+      window.location.assign(safeNext(returnTo));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Couldn’t log in. Try again.');
       setBusy(false);

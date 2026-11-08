@@ -11,15 +11,15 @@ export const TONE: Record<Status, { label: string; pill: string; ring: string; b
 };
 
 export const btn =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-accent bg-accent px-[18px] text-[15px] font-semibold text-white no-underline hover:bg-accent-dark disabled:opacity-50 cursor-pointer';
+  'btn-primary min-h-11 gap-2 text-[15px] no-underline cursor-pointer';
 export const btn2 =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-line-2 bg-white px-[18px] text-[15px] font-semibold text-ink no-underline hover:bg-hover cursor-pointer';
+  'btn-ghost inline-flex min-h-11 items-center justify-center gap-2 text-[15px] no-underline disabled:opacity-50 cursor-pointer';
 export const input =
-  'min-h-11 w-full rounded-[10px] border border-line-2 bg-white px-3 text-base text-ink box-border';
+  'field-input min-h-11 w-full text-ink box-border';
 
 export function Card({ children, className = '', label }: { children: ReactNode; className?: string; label?: string }) {
   return (
-    <section aria-label={label} className={`box-border rounded-[14px] border border-line bg-surface p-6 ${className}`}>
+    <section aria-label={label} className={`paper-card box-border ${className}`}>
       {children}
     </section>
   );

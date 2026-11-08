@@ -14,7 +14,8 @@ import { HouseholdMemberCard } from '@/components/HouseholdMemberCard';
 import { FamilyCarousel, type FamilySlide } from '@/components/FamilyCarousel';
 import { lookOf } from '@/lib/people';
 import { money, dayDate } from '@/lib/format';
-import { Card, Eyebrow, Pill, btn2 } from '@/components/ui';
+import { Card, Pill, btn2 } from '@/components/ui';
+import { PageShell } from '@/components/wallet/PageShell';
 
 export default function HouseholdPage() {
   const { me } = useViewer();
@@ -73,44 +74,48 @@ export default function HouseholdPage() {
     (h) => h.phase !== 'locked' && h.phase !== 'cancelled' && h.participants.some((p) => memberIds.includes(p.memberId)),
   );
 
-  if (conn.status !== 'ready') return <p className="m-0 text-muted">{conn.status === 'error' ? 'Could not load your household. Refresh to try again.' : 'Loading household…'}</p>;
-
-  return <>
-    <div className="flex flex-col gap-1.5">
-      <Eyebrow>{household && !household.iAmOwner ? `${household.owner.name}'s household` : 'Your household'}</Eyebrow>
-      <h1 className="m-0 text-[32px]">Household</h1>
-      {household && <div className="flex flex-col items-start gap-2">
-        <button type="button" className={`${btn2} text-bad`} disabled={leaving || shared.saving !== null} onClick={() => void leave()}>
+  return <PageShell id="household" title="Household"
+    eyebrow={`HackUTD 2026 · ${household && !household.iAmOwner ? `${household.owner.name}'s household` : 'Your household'}`}
+    intro={household
+      ? 'Each person controls what they share. Joining a household never shares finances automatically.'
+      : 'Invite someone by username. They join only after accepting on their own account.'}
+    actions={household && <button type="button" className="household-leave min-h-11 rounded-md border px-4 font-semibold disabled:opacity-50"
+      disabled={leaving || shared.saving !== null} onClick={() => void leave()}>
           {leaving ? 'Leaving…' : 'Leave household'}
-        </button>
-        {household.iAmOwner && <p className="m-0 text-xs text-muted">Ownership passes to the next member. Sharing resets to private; if only one member remains, the household closes.</p>}
-      </div>}
-      {leaveError && <p role="alert" className="m-0 text-sm text-bad">{leaveError}</p>}
-      <p className="m-0 text-ink-2">{household
-        ? 'Each person controls what they share. Joining a household never shares finances automatically.'
-        : 'Invite someone by username. They join only after accepting on their own account.'}</p>
-    </div>
-
+    </button>}>
+    <div className="grid gap-6">
+    {conn.status !== 'ready' && <Card><p className="text-muted" aria-live="polite">{conn.status === 'error' ? 'Could not load your household. Refresh to try again.' : 'Loading household…'}</p></Card>}
+    {leaveError && <p role="alert" className="text-sm text-bad">{leaveError}</p>}
+    {household?.iAmOwner && <p className="text-xs text-muted">Leaving passes ownership to the next member and resets sharing to private; if only one member remains, the household closes.</p>}
     <RequestCards requests={incoming} />
-
-    {household && <>
-      <FamilyCarousel slides={slides} />
-      {shared.error && <Card><p role="alert" className="m-0 mb-3 text-bad">{shared.error}</p><button type="button" className={btn2} onClick={() => void shared.refresh()}>Refresh sharing</button></Card>}
-      {currentShared
+    {conn.status === 'ready' && <div className="household-layout">
+      {household ? <FamilyCarousel slides={slides} unavailable={Boolean(shared.error)} /> : <section className="household-overview">
+        <p className="eyebrow">Household at a glance</p>
+        <div className="member-card mt-5"><h2 className="font-display text-2xl">Make room for your people</h2>
+          <p className="mt-3 text-muted-foreground">No household yet. Invite a spouse, partner or dependent who has an account. They choose what to share after accepting.</p>
+        </div>
+      </section>}
+      {household && (currentShared
         ? <HouseholdSharing settings={currentShared.settings} saving={shared.saving} onToggle={(scope, enabled) => void shared.toggle(scope, enabled)} />
-        : !shared.error && <p className="m-0 text-muted">Loading sharing preferences…</p>}
+        : <section className="household-sharing"><h2 className="section-title font-display">What I share with my household</h2>
+          {shared.error ? <><p role="alert" className="my-3 text-bad">{shared.error}</p><button type="button" className={btn2} onClick={() => void shared.refresh()}>Refresh sharing</button></>
+            : <p className="mt-3 text-muted">Loading sharing preferences…</p>}
+        </section>)}
+      {(!household || household.iAmOwner) && <AddByUsername kind="household" title="Invite to your household"
+        help="They must accept on their own device. Both people choose their own sharing settings after joining. Dependents also need their own account and username." />}
+    </div>}
+    {household && <>
+      {shared.error && currentShared && <p role="alert" className="text-bad">{shared.error}</p>}
       {openHuddles.length > 0 && <Card label="Household huddles">
-        <h2 className="m-0 mb-3 text-[22px]">Open huddles</h2>
+        <h2 className="section-title mb-3 font-display">Open huddles</h2>
         <div className="flex flex-wrap gap-4">{openHuddles.map((h) => <Link key={h.id} href={`/huddles/${h.id}`} className="font-semibold">{h.name}</Link>)}</div>
       </Card>}
     </>}
 
-    {(!household || household.iAmOwner) && <div className="flex flex-wrap items-start gap-5">
-      <AddByUsername kind="household" title="Invite to your household" help="They must accept on their own device. Both people choose their own sharing settings after joining." />
-      {pending.length > 0 && <Card label="Invites sent" className="flex min-w-0 flex-[999_1_420px] flex-col gap-1">
-        <h2 className="m-0 mb-2 text-[22px]">Invites sent</h2>
+    {pending.length > 0 && <Card label="Invites sent" className="min-w-0">
+        <h2 className="section-title mb-2 font-display">Invites sent</h2>
         {pending.map((r) => <PersonRow key={r.id} person={r.to} right={<Pill className="bg-warn-bg text-warn">Awaiting acceptance</Pill>} />)}
-      </Card>}
-    </div>}
-  </>;
+    </Card>}
+    </div>
+  </PageShell>;
 }
