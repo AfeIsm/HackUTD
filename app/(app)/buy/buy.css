@@ -86,3 +86,11 @@
   .buy-score-comparison { gap: 8px; }
   .buy-score { padding: 12px; }
 }
+
+.buy-basket-total { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 14px; border-radius: 12px; padding: 14px 16px; background: var(--note-light); color: var(--note-ink); font-size: .8125rem; }
+.buy-basket-total strong { font-family: var(--font-display); font-size: 1.65rem; font-variant-numeric: tabular-nums; }
+.buy-planned-items { margin: -8px 0 0; padding: 0; list-style: none; }
+.buy-planned-items li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); padding: 10px 0; font-size: .875rem; }
+.buy-planned-items li > span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.buy-planned-items small { color: var(--muted-foreground); font-size: .75rem; }
+.buy-planned-items strong { flex: none; font-variant-numeric: tabular-nums; }

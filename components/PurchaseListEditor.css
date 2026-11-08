@@ -1,0 +1,173 @@
+.buy-purchase-editor {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.buy-purchase-list {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.buy-purchase-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in oklab, var(--note-light) 45%, var(--paper)), var(--paper) 70%);
+}
+
+.buy-purchase-heading {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.buy-purchase-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--note-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.buy-purchase-number {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--note-ink) 12%, transparent);
+  border-radius: 9px;
+  background: var(--note-light);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.buy-purchase-remove {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  margin: -6px -6px -6px 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.buy-purchase-remove:hover {
+  background: var(--risk-bg);
+  color: var(--risk);
+}
+
+.buy-purchase-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.buy-purchase-field .field-input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.buy-purchase-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  align-items: end;
+  gap: 14px;
+}
+
+.buy-purchase-price {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--muted-foreground);
+  font-size: 1rem;
+}
+
+.buy-purchase-price:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 25%, transparent);
+}
+
+.buy-purchase-price-input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--note-ink);
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.buy-purchase-add {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed color-mix(in oklab, var(--note-ink) 40%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--note-light) 42%, var(--paper));
+  color: var(--note-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.buy-purchase-add:hover:not(:disabled) {
+  border-color: var(--note-ink);
+  background: var(--note-light);
+}
+
+.buy-purchase-add:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.buy-purchase-count {
+  margin: -4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: right;
+}
