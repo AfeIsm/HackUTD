@@ -4,6 +4,9 @@
 
 import type { FinancialPicture } from '../types';
 
+// Bump when the scoring rules change, so plans and answers saved under the old rules aren't reused.
+const SCORING_VERSION = 'days-covered-1';
+
 // JSON with object keys sorted, so key order never changes the output
 export function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
@@ -29,6 +32,7 @@ function sortedBy<T>(items: T[], keyOf: (t: T) => string): T[] {
 
 export function dataHash(picture: FinancialPicture): string {
   const normalized = {
+    scoring: SCORING_VERSION,
     memberId: picture.memberId,
     accounts: sortedBy(picture.accounts, (a) => a.id),
     txns: sortedBy(picture.txns, (t) => t.id),

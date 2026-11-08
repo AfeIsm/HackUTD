@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { canAfford, fitsBudget } from '../afford';
 import { capacity, checkPledge, fairSplit, shortfall } from '../split';
-import { ASOF, alex } from './fixtures';
-const healthy = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) };
+import { ASOF, alex, lowEssentials } from './fixtures';
+const healthy = lowEssentials({ ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) });
 const buy = (p = healthy, cost = 12000, sourceAccountId = 'a1', date = ASOF) => canAfford(p, { label: 'Purchase', cost, sourceAccountId, date }, ASOF);
 
 describe('purchase approval', () => {

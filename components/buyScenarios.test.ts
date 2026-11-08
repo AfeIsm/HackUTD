@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildBuyScenarios } from './buyScenarios';
-import { alex, ASOF } from '../lib/engine/__tests__/fixtures';
+import { alex, ASOF, lowEssentials } from '../lib/engine/__tests__/fixtures';
 import { daysBetween } from '../lib/engine/dates';
 import { scoreHealth } from '../lib/engine/health';
 import type { FinancialPicture } from '../lib/types';
 
-const picture: FinancialPicture = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) };
+const picture: FinancialPicture = lowEssentials({ ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) });
 const question = { label: 'Console', cost: 90000, date: ASOF, sourceAccountId: 'a1' };
 
 describe('purchase scenario comparison', () => {

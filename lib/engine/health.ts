@@ -14,6 +14,10 @@ const PAY_MONTH: Record<number, number> = { 7: 52 / 12, 14: 26 / 12, 15: 2, 30: 
 export function monthly(o: Obligation): number {
   return Math.round(o.amount * (o.cadence === 'weekly' ? 52 / 12 : o.cadence === 'biweekly' ? 26 / 12 : 1));
 }
+/** The balance that covers this many days of essential costs: green for the bills indicator. */
+export const COVERED_DAYS = 10;
+export const billsTarget = (obligations: Obligation[]): number =>
+  Math.ceil(obligations.filter((o) => o.essential).reduce((s, o) => s + monthly(o), 0) * COVERED_DAYS / 30);
 function indicator(key: IndicatorKey, label: string, weight: number, value: number, display: string, status: Status, explanation: string): Indicator {
   return { key, label, weight, value: status === 'needsInput' ? null : value, display: status === 'needsInput' ? 'Needs input' : display, status, points: POINTS[status], explanation };
 }
@@ -41,11 +45,15 @@ export function scoreHealth(p: FinancialPicture, opts: ScoreOptions): HealthResu
   const forecast = forecastBalance(p, { asOf, changes, days });
   const low = forecast.lowest;
   if (Object.values(forecast.byAccount).some((points) => points.some((point) => !Number.isSafeInteger(point.balance)))) { missingInputs.push('Amounts exceed the supported calculation range.'); structuralMissing = true; }
-  const billsStatus: Status = low.balance < 0 ? 'red' : structuralMissing ? 'needsInput' : low.balance >= 20_000 ? 'green' : 'yellow';
-  if (billsStatus === 'red') flags.push(`Checking goes negative on ${shortDate(low.date)} after scheduled expenses and commitments.`);
-  const bills = indicator('essentialBills', 'Essential bills covered', 40, low.balance, money0(low.balance), billsStatus,
-    `Lowest individual checking account: ${money(low.balance)} on ${shortDate(low.date)}. Includes every scheduled expense and reservation. Goal: $200+ buffer.`);
   const essential = active.filter((o) => o.essential).reduce((s, o) => s + monthly(o), 0);
+  // Days covered = lowest balance ÷ daily essential costs. Green needs COVERED_DAYS of them.
+  const target = billsTarget(active);
+  const daysCovered = essential > 0 ? Math.floor(low.balance / (essential / 30)) : null;
+  const billsStatus: Status = low.balance < 0 ? 'red' : structuralMissing ? 'needsInput' : low.balance >= target ? 'green' : 'yellow';
+  if (billsStatus === 'red') flags.push(`Checking goes negative on ${shortDate(low.date)} after scheduled expenses and commitments.`);
+  const bills = indicator('essentialBills', 'Essential bills covered', 40, low.balance,
+    daysCovered !== null && low.balance >= 0 ? `${daysCovered} ${daysCovered === 1 ? 'day' : 'days'}` : money0(low.balance), billsStatus,
+    `Lowest individual checking account: ${money(low.balance)} on ${shortDate(low.date)}, after every scheduled expense and reservation.${essential ? ` That covers ${Math.max(0, daysCovered ?? 0)} ${daysCovered === 1 ? 'day' : 'days'} of your ${money0(essential)}/mo essential costs. Goal: ${COVERED_DAYS} days (${money0(target)}).` : ''}`);
   const free = Math.max(0, freeSavings(p) - fromFree);
   const months = essential > 0 ? free / essential : 0;
   const cushion = indicator('cushion', 'Safety cushion', 20, months, essential ? `${months.toFixed(1)} mo` : 'No essential costs',

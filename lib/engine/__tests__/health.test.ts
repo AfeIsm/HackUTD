@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { scoreHealth } from '../health';
+import { scoreHealth, billsTarget } from '../health';
 import { dataHash } from '../hash';
 import { checkSource, freeSavings } from '../source';
 import { parseMoney, toCents } from '../money';
-import { ASOF, alex } from './fixtures';
+import { ASOF, alex, lowEssentials } from './fixtures';
 
-const healthy = { ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) };
+const healthy = lowEssentials({ ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance: 80000 } : a) });
 
 describe('integer money boundaries', () => {
   it('converts provider decimals and exact form input to cents', () => {
@@ -56,6 +56,28 @@ describe('health policy', () => {
     const r = scoreHealth(p, { asOf: ASOF, changes: [{ kind: 'oneTime', sourceAccountId: 'a1', amount: 90000, label: 'Purchase' }] });
     expect(r.overall).toBe('red');
     expect(r.indicators[0].value).toBe(-79360);
+  });
+  describe('days covered', () => {
+    const withChecking = (balance: number) => ({ ...alex, accounts: alex.accounts.map((a) => a.id === 'a1' ? { ...a, balance } : a) });
+    const bills = (balance: number) => scoreHealth(withChecking(balance), { asOf: ASOF }).indicators[0];
+    const dip = alex.accounts[0].balance - scoreHealth(alex, { asOf: ASOF }).indicators[0].value!;
+    const target = billsTarget(alex.obligations);
+    it('is green at exactly 10 days of essential costs and yellow one cent under', () => {
+      expect(bills(target + dip).status).toBe('green');
+      expect(bills(target + dip - 1).status).toBe('yellow');
+    });
+    it('no longer treats a flat $200 as enough', () => {
+      expect(target).toBeGreaterThan(20000);
+      expect(bills(20000 + dip).status).toBe('yellow');
+    });
+    it('is red only when the balance goes below zero', () => {
+      expect(bills(dip).status).toBe('yellow');
+      expect(bills(dip - 1).status).toBe('red');
+    });
+    it('shows the days covered and scales with costs', () => {
+      expect(bills(target + dip).display).toMatch(/^\d+ days?$/);
+      expect(billsTarget(lowEssentials(alex).obligations)).toBeLessThan(target);
+    });
   });
   it('uses savings thresholds rather than automatically denying all cushion use', () => {
     const p = { ...healthy, accounts: healthy.accounts.map((a) => a.id === 'a2' ? { ...a, balance: 1000000 } : a) };

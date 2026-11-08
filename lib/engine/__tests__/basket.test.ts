@@ -4,9 +4,9 @@ import { canAfford, type AffordQuestion } from '../afford';
 import { canAffordPurchases, MAX_PURCHASES, purchaseTotal } from '../basket';
 import { addDays, daysBetween } from '../dates';
 import { scoreHealth } from '../health';
-import { ASOF, alex } from './fixtures';
+import { ASOF, alex, lowEssentials } from './fixtures';
 
-const healthy: FinancialPicture = { ...alex, accounts: alex.accounts.map((account) => account.id === 'a1' ? { ...account, balance: 80_000 } : account) };
+const healthy: FinancialPicture = lowEssentials({ ...alex, accounts: alex.accounts.map((account) => account.id === 'a1' ? { ...account, balance: 80_000 } : account) });
 const item = (cost = 10_000, date = ASOF, sourceAccountId = 'a1'): AffordQuestion => ({ label: 'Purchase', cost, date, sourceAccountId });
 
 describe('purchaseTotal', () => {

@@ -91,7 +91,7 @@ Each indicator returns green, yellow, red, or `needsInput`. Green earns 100 indi
 
 | Indicator | Weight | Measurement | Green | Yellow | Red |
 | --- | --- | --- | --- | --- | --- |
-| Essential bills covered | 40% | Lowest projected checking balance over 30 days, after scheduled expenses and existing commitments | At least $200 | At least $0 and below $200 | Below $0 |
+| Essential bills covered | 40% | Days covered: lowest projected checking balance over 30 days, after scheduled expenses and existing commitments, ÷ daily essential costs | 10 days or more | 0 to under 10 days | Balance below $0 |
 | Safety cushion | 20% | Unallocated savings divided by monthly essential costs | At least 3 months | At least 1 and below 3 months | Below 1 month |
 | Debt load | 15% | Scheduled loan payments plus card minimums divided by monthly income | Below 20% | 20% through 36% | Above 36% |
 | Savings protection | 15% | Unallocated savings used for spending within the assessment's 30-day lookback and applicable proposed changes | No usage | Above 0% and below 10% of the defined savings baseline | At least 10% |

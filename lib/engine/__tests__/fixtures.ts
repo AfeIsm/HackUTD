@@ -30,3 +30,6 @@ export const alex: FinancialPicture = {
     ob('bill:b1', 'Rent', 1200, '2026-12-01', true, 'bill'),
   ],
 };
+
+// Keeps the 10-day bills target near $200, so purchase-logic tests aren't about the target itself.
+export const lowEssentials = (p: FinancialPicture): FinancialPicture => ({ ...p, obligations: p.obligations.map((o) => o.name === 'Rent' ? { ...o, essential: false } : o) });
