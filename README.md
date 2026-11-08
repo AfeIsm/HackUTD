@@ -1,13 +1,12 @@
-# HackUTD
-# Huddle
+# Wallet Whisperer
 
 **Can we afford it?**
 
-Huddle brings a person's financial picture into one place, evaluates upcoming obligations, and helps individuals and groups make spending decisions. Members can plan a shared purchase while keeping their underlying finances private.
+Wallet Whisperer brings a person's financial picture into one place, evaluates upcoming obligations, and helps individuals and groups make spending decisions. With **Huddles**, family and friends plan a shared purchase while keeping their underlying finances private. (Throughout this document, "Huddle" refers to that group-purchase feature.)
 
 Built for HackUTD 2026 with Capital One's Nessie banking sandbox, NVIDIA Nemotron, and MongoDB Atlas.
 
-> **Project status — application scaffold and prototype implemented.** The repository contains a Next.js App Router application, React/Tailwind screens for My Money, purchase simulations, households, friends and Huddles, a pure financial engine with regression tests, and Nessie seed/normalization support. Financial contracts use integer cents and exact owned source accounts; goals, obligations, income and reservations are account-linked. Missing required inputs block approval, and purchase “Yes” requires a complete green result. The dashboard and Huddle workflow still keep edits in browser memory. MongoDB persistence, Nemotron tool execution, permission-enforced household sharing, separate yellow-pledge acknowledgement and provider-confirmed funding remain planned. Live Nessie behavior and deployment must be verified separately; implemented screens are not evidence of completed integrations.
+> **Project status.** Implemented: a Next.js App Router application with screens for My Money, purchase simulations, households, friends and Huddles; a pure financial engine with regression tests; Nessie seeding and normalization (the sandbox is seeded and pages read live Nessie data, with a committed offline fixture); and **MongoDB Atlas persistence for health-check history, app-added purchases and obligation tags**. Financial contracts use integer cents and exact owned source accounts. **In progress:** real user accounts (sign-up, log-in, sessions), adding friends and family by unique username, cross-device invitations, and Huddle state in MongoDB. Huddle workflow state still lives in browser memory until that ships. Planned: Nemotron tool execution, permission-enforced household sharing, separate yellow-pledge acknowledgement and provider-confirmed funding. Implemented screens are not evidence of completed integrations.
 
 ## The problem
 
@@ -32,7 +31,7 @@ The calculation engine owns every financial number. Nemotron selects tools, comp
 | PNC — 360° Financial Health Navigator | Consolidated money view, five indicators, dated forecasts, purchase simulations, and actionable explanations | Change an input and inspect the resulting forecast and recommendation |
 | Capital One — Best Use of Nessie | Customer/account data, transaction history, bills, loans, merchants, and approved sandbox transfers | Show data retrieved from Nessie and the provider record for a supported write |
 | NVIDIA — Use Nemotron Beyond a Chatbot | A bounded agent workflow that retrieves context, calls calculation tools, evaluates options, and proposes a verified plan | Display actual tool calls, their results, and the selected plan |
-| MLH — MongoDB Atlas, subject to entry eligibility | Persisted health history, reusable plans, versioned Huddles, consent, reservations, and contribution records | Reload or switch demo identities and retrieve the correct saved state |
+| MLH — MongoDB Atlas, subject to entry eligibility | User accounts with unique-username and TTL session indexes, persisted health history, reusable plans, versioned Huddles, consent, reservations, and contribution records | Log in on a second device and retrieve the correct saved state |
 
 Track mapping follows the event's published sponsor prompts. Confirm the optional MLH entry name and eligibility before selecting it. [Official event tracks](https://zeroday.hackutd.co/)
 
@@ -43,7 +42,8 @@ These decisions apply to the main implementation.
 - **Yellow pledges are allowed with explicit confirmation.** Show the trade-off privately and require a separate acknowledgement tied to the current assessment. Red results and incomplete assessments block commitment.
 - **Household finances are private until shared.** A spouse, dependent, or household role does not itself grant access to that person's financial records. Sharing requires an explicit, revocable grant.
 - **Friends retain private financial views.** Group members receive only the information allowed by the Huddle's phase and sharing rules.
-- **The demo uses synthetic people and money.** The one-laptop `Viewing as` selector switches seeded identities. It demonstrates permission-aware views and is not an authentication system.
+- **Real accounts, not a demo switcher.** Each person signs up and logs in on their own device; the server identifies the viewer from a session cookie and never trusts a member ID sent by the browser for private data. The demo uses seeded accounts with synthetic money, logged in on two devices. (This replaces the earlier one-laptop `Viewing as` selector.)
+- **People are added by unique username.** Every account picks a username at sign-up. Usernames are case-insensitive and unique, enforced by a unique database index. Friends and family are added by typing an exact username and the other person accepts on their own device; there is no public directory and no phone or email lookup.
 - **Every spending decision names an exact source account.** Store `sourceAccountId`. Checking/savings is a display label derived from that account.
 - **Saved plans have a defined context.** Reuse a plan only while the financial inputs, assessment date, commitments, and relevant policy versions still match.
 - **A fully approved plan starts a funding workflow.** The UI reports a fund as funded after provider-confirmed completion of its required contributions.
@@ -58,6 +58,7 @@ Complete each stage through the deployed application before expanding the next o
 | P0a | Seed data, My Money, account normalization, obligations, income detection, forecasts, deterministic health results, goals, source checks, saved state | Live or explicitly labeled fixture data drives a complete personal assessment |
 | P0b | Nemotron fix plans and purchase simulations, verified outcomes, saved answers and observable tool activity | A member can ask about a purchase and inspect a reproducible answer |
 | P1 | Core Huddle, one seeded friend, nonpaying members, private checks, yellow acknowledgement, reveal, approvals, reservations and funding records | A group completes the main purchase flow on the deployed URL |
+| P1+ | User accounts (F7): sign-up, log-in, sessions, unique usernames, friend/household requests by username, Huddle state in MongoDB, cross-device invitations | Two people on two devices complete the Huddle flow with server-side privacy |
 | P2 | Phone-based in-app invitations, shortfall coaching, declined proposals, fair-split suggestions and explicit household sharing controls | Members can revise a proposal without leaking private records or using stale approvals |
 | P3 | Private alerts, a reviewer agent and probabilistic forecast experiments | Consider only after P0–P2 and submission preparation are complete |
 
@@ -130,7 +131,7 @@ The same question in the same assessment context loads the stored answer. Canoni
 
 Create a Huddle with a name, total cost, target date, members and a paying/nonpaying flag. Nonpaying participants can join without entering the affordability workflow.
 
-The P1 demo uses seeded members and one seeded friend. The invitation extension uses an in-app phone lookup and acceptance. This lookup is an app directory feature and does not establish phone ownership.
+Members are added by unique username (F7). The invited person sees the request on their own device and must accept before joining; only accepted friends and household members can be added to a Huddle.
 
 | Phase | What happens | What other members can see |
 | --- | --- | --- |
@@ -186,6 +187,18 @@ These are core implementation requirements supporting F1–F5.
 - Reject a late assessment or agent response when its input version is no longer current. An older request finishing last must not replace a newer assessment.
 - Use integer cents internally, explicit transaction-status mapping, stable identifiers and predictable date handling.
 - Display live, stale and fixture data modes. Preserve provider errors as errors rather than silently presenting fixture data as live.
+
+### F7 — Accounts, usernames and cross-device invitations
+
+Each person has their own account and uses Wallet Whisperer on their own device.
+
+- **Sign up** with name, username, email and password; **log in** with username or email. Sessions last seven days.
+- **Unique usernames.** 3–20 characters (letters, numbers, `_`, `.`), case-insensitive, displayed as `@username`. A unique index on the lowercased username makes the database reject duplicates, including simultaneous sign-ups. The sign-up form checks availability while typing.
+- **Adding people by username.** Friend requests, household invitations (with a spouse/dependent role) and Huddle invitations name an exact username. The recipient accepts on their own device. There is no browsable user list.
+- **Cross-device updates.** Pending requests and Huddle changes refresh by polling and on window focus.
+- **Saved per account.** Health history, purchases, tags, goals, Huddles and requests are stored in MongoDB against the account.
+- **Security model.** Passwords are hashed with Node's `crypto.scrypt` and a per-user salt. The session is a random token in an httpOnly, Secure, SameSite=Lax cookie; MongoDB stores only its hash, with a TTL index that removes expired sessions automatically. Route protection uses Next.js 16 `proxy.ts`. This is demo-grade security, not bank-grade.
+- **New accounts get their own sandbox money.** Sign-up creates a Nessie customer with starter checking and savings accounts. Seeded demo accounts (`alex`, `jordan`, `maya`, `sam`) link to the existing seeded Nessie customers.
 
 ### Later work — P3
 
@@ -365,12 +378,16 @@ Store external provider IDs alongside Huddle-owned identifiers. Keep secret cred
 
 | Collection | Core contents |
 | --- | --- |
-| `members`, `households` | Demo identity, household relationship and Nessie customer mapping |
+| `users` | Account: unique `usernameLower`, unique email, name, password hash + salt, linked member and Nessie customer |
+| `sessions` | Hashed session token, user, expiry (TTL index deletes expired sessions) |
+| `friendRequests` | Friend, household or Huddle request by username: sender, recipient, kind, role and status |
+| `members`, `households` | Household relationship and Nessie customer mapping |
 | `sharingGrants` | Grantor, grantee, explicit scope and revocation state |
 | `accountMetadata` | Confirmed supplementary fields such as card limit or loan due date |
 | `obligationOverrides` | Classification, correction and source-linking decisions |
 | `savingsGoals` | Account-linked earmarks and matching Huddle references |
-| `healthSnapshots` | Context key, policy/engine versions, date, indicators, forecast and provenance |
+| `healthSnapshots` | **Implemented.** Member, data fingerprint, score, status, indicators, flags, trigger and time (score history) |
+| `appPurchases`, `obligationTags` | **Implemented.** Purchases added in the app (cents, exact source account, optional goal) and essential/non-essential overrides |
 | `fixPlans`, `affordAnswers` | Verified outputs keyed by member/context and canonical question |
 | `friendInvites` | In-app invite, target member, Huddle and acceptance state |
 | `huddles` | Cost/date, proposal version, phase, members, private assessments and approvals |
@@ -410,7 +427,7 @@ Seed synthetic records for Alex, Jordan, Maya, Leo and Sam. Keep names human-rea
 
 Create approximately 60 days of synthetic history with realistic payroll cadence and spending categories. Choose dates relative to the controlled assessment clock. Derive displayed scores and readiness dates from the actual fixtures and engine; keep expected values in meaningful regression tests.
 
-The main demonstration should show personal assessment, one purchase simulation, private pledges, a yellow acknowledgement or private revision, reveal, agreement, and reconciled mock funding. A reload/identity switch shows saved-result consistency. A separate private view demonstrates household sharing only after consent.
+The main demonstration uses two devices, for example a laptop logged in as `alex` and a phone logged in as `sam`. It shows personal assessment, one purchase simulation, a Huddle invitation sent by username that appears on the other device, private pledges, a yellow acknowledgement or private revision, reveal on both screens, agreement, and reconciled mock funding. Logging out and back in shows saved-result consistency. A separate private view demonstrates household sharing only after consent.
 
 ## Local setup contract
 
@@ -420,8 +437,8 @@ The application scaffold and scripts now exist. Install dependencies and start t
 git clone https://github.com/AfeIsm/HackUTD.git
 cd HackUTD
 npm install
-cp .env.example .env.local
-npm run seed
+cp .env.example .env.local   # then fill in the keys from the team
+npm run db:check             # optional: confirms MongoDB works
 npm run dev
 ```
 
@@ -434,9 +451,11 @@ NVIDIA_API_KEY=
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
 MONGODB_URI=
-MONGODB_DB=huddle
+MONGODB_DB=walletwhisperer
 USE_LOCAL_DATA=false
 ```
+
+The team's Nessie sandbox is already seeded and `lib/nessie/local.json` is committed, so teammates do not need to run `npm run seed` (it refuses to run twice with the same key). Use `npm run db:check` to verify the MongoDB connection without printing the connection string.
 
 The scaffold includes `.env.example`; keep secret placeholders blank. Keep actual values in `.env.local` and the hosting environment. Configure Atlas connectivity for the deployed app using the deployment's documented network-access options.
 
@@ -470,6 +489,8 @@ In fixture mode, show a visible data-mode badge and track simulated writes local
 - [ ] Test duplicate obligations, current-balance forecasting, missing data and account-specific affordability.
 - [ ] Save matching assessments and verified plans, including date/version-aware cache invalidation.
 - [ ] Simulate a purchase without executing it.
+- [ ] Sign up, log in and log out; reject duplicate usernames; derive the viewer from the session on every route.
+- [ ] Add friends and household members by username, accepted on the other person's device.
 - [ ] Enforce explicit household sharing and correct private/group projections.
 - [ ] Allow yellow pledges only after acknowledgement, and invalidate stale agreements.
 - [ ] Prevent overlapping Huddles from overcommitting the same money.
