@@ -3,10 +3,14 @@
 //   agree · requestChanges {reason} · edit {totalCost?, targetDate?} · cancel
 // Returns my huddles, privacy-filtered for me.
 
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { requireViewer } from '@/lib/auth/viewer';
+import { coachFailedPledge } from '@/lib/agent/coach';
 import { actOnHuddle, listHuddles, type HuddleAction } from '@/lib/services/huddle';
 import type { DeclineReason } from '@/lib/types';
+
+// Long enough for Nemotron's background pledge advice (after()) to finish.
+export const maxDuration = 60;
 
 const REASONS: DeclineReason[] = ['changeMyAmount', 'unfairSplit', 'totalOrDate', 'out'];
 
@@ -47,5 +51,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<'/api/huddles
   if (!action) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   const result = await actOnHuddle(viewer, id, action);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  const failed = result.failedPledge;
+  if (failed) after(() => coachFailedPledge(viewer.memberId, failed));
   return NextResponse.json({ huddles: await listHuddles(viewer.memberId) });
 }

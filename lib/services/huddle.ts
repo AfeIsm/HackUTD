@@ -11,6 +11,7 @@ import { DEMO_ASOF, PEOPLE } from '../people';
 import { buildPicture } from './picture';
 import { connectionsFor } from './social';
 import { capacity, checkPledge, fairSplit } from '../engine/split';
+import { pledgeAdvice, type PledgeAdvice } from '../engine/pledgeAdvice';
 import { validCents } from '../engine/money';
 import { validDate } from '../engine/validation';
 import {
@@ -35,7 +36,10 @@ const fromDoc = (d: HuddleDoc): Huddle => ({
 const hasMoney = async (memberId: string) => PEOPLE.some((p) => p.id === memberId && p.hasAccounts) ||
   Boolean(await (await getDb()).collection('members').findOne({ memberId, status: 'ready' }));
 
-export type ActionResult = { ok: true } | { ok: false; status: number; error: string };
+// A pledge that just failed its private check: Nemotron writes advice for it after the response.
+export interface FailedPledge { huddleId: string; name: string; pledge: number; sourceAccountId: string; goalId?: string; targetDate: string; advice: PledgeAdvice }
+
+export type ActionResult = { ok: true; failedPledge?: FailedPledge } | { ok: false; status: number; error: string };
 const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
 
 /** Every huddle the viewer is in (joined or invited), privacy-filtered for them. */
@@ -129,7 +133,7 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
       const { picture } = await buildPicture(me.memberId); // YOUR data only, checked here on the server
       if (!picture) return fail(404, 'No accounts found.');
       const pledge = { amount: a.amount, sourceAccountId: a.sourceAccountId, ...(a.goalId ? { goalId: a.goalId } : {}) };
-      return applyPledge(h, me.memberId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF));
+      return applyPledge(h, me.memberId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF), pledgeAdvice(picture, pledge, h.targetDate, DEMO_ASOF));
     }
     case 'agree':
       if (h.phase !== 'agreeing' || !me.committed) return fail(409, 'There’s nothing to agree to yet.');
@@ -164,7 +168,16 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
     const fields: Partial<Huddle> = { ...result };
     delete fields.id;
     const res = await col.updateOne({ _id: id, version: doc.version }, { $set: { ...fields, version: doc.version + 1, updatedAt: new Date() } });
-    if (res.matchedCount === 1) return { ok: true };
+    if (res.matchedCount === 1) {
+      const mine = result.participants.find((p) => p.memberId === viewer.memberId);
+      if (action.action === 'pledge' && mine?.advice && mine.coachState === 'thinking' && mine.pledge && mine.sourceAccountId) {
+        return { ok: true, failedPledge: {
+          huddleId: id, name: result.name, pledge: mine.pledge, sourceAccountId: mine.sourceAccountId,
+          ...(mine.goalId ? { goalId: mine.goalId } : {}), targetDate: result.targetDate, advice: mine.advice,
+        } };
+      }
+      return { ok: true };
+    }
     // someone else changed it in between: re-read and try again
   }
   return fail(409, 'Lots of changes at once. Try again.');
@@ -207,6 +220,14 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
     });
   }
   return { atRisk, newlyAtRisk };
+}
+
+/** Store Nemotron's advice on a failed pledge, only if that same pledge is still the current one. */
+export async function saveFailedPledgeCoach(f: FailedPledge, memberId: string, note: CoachNote | null): Promise<void> {
+  await (await huddles()).updateOne(
+    { _id: f.huddleId, participants: { $elemMatch: { memberId, checkPassed: false, pledge: f.pledge, sourceAccountId: f.sourceAccountId, coachState: 'thinking' } } },
+    { $set: { 'participants.$.coach': note, 'participants.$.coachState': note ? 'ready' : 'unavailable', updatedAt: new Date() }, $inc: { version: 1 } },
+  );
 }
 
 /** Store Nemotron's private plan on this member's row, only if the pledge is still at risk. */

@@ -8,6 +8,7 @@
 
 import type { DeclineReason, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
+import type { PledgeAdvice } from './engine/pledgeAdvice';
 import type { AgentPlan } from './agent/loop';
 
 // Nemotron's private plan for keeping an at-risk commitment (written automatically).
@@ -33,6 +34,8 @@ export interface Participant {
   riskReason?: string | null; // PRIVATE: only this member sees why
   riskScore?: number | null; // PRIVATE: their score if the pledge went through now
   coach?: CoachNote | null; // PRIVATE: only this member ever sees it
+  advice?: PledgeAdvice | null; // PRIVATE: the engine's numbers for a pledge that failed its check
+  coachState?: 'thinking' | 'ready' | 'unavailable' | null; // PRIVATE: Nemotron's advice on that pledge
 }
 
 export interface Huddle {
@@ -99,12 +102,13 @@ export function applyInviteAnswer(h: Huddle, memberId: string, accept: boolean):
   });
 }
 
-export function applyPledge(h: Huddle, memberId: string, pledge: { amount: number; sourceAccountId: string; goalId?: string }, check: PledgeCheck): Huddle {
+export function applyPledge(h: Huddle, memberId: string, pledge: { amount: number; sourceAccountId: string; goalId?: string }, check: PledgeCheck, advice: PledgeAdvice | null = null): Huddle {
   // a new pledge resets agreements: everyone re-agrees to the new numbers
   return advance(updateParticipant(resetAgreements(h), memberId, (p) => ({
     ...p, pledge: pledge.amount, sourceAccountId: pledge.sourceAccountId, goalId: pledge.goalId ?? null,
     committed: check.passed, checkPassed: check.passed, feedback: check.reason, suggestion: null,
     atRisk: false, riskReason: null, riskScore: null, coach: null, // a fresh check replaces any old warning
+    advice, coachState: advice ? 'thinking' : null,
   })));
 }
 

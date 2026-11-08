@@ -17,6 +17,7 @@ import { DEMO_ASOF, lookOf } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { huddleAction, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
+import { PledgeCoach } from './PledgeCoach';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
@@ -254,8 +255,11 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
             <strong className="text-[17px]">
               {money0(mine.pledge ?? 0)} from {sourceText} didn’t pass your health check.
             </strong>
-            <span className="text-sm leading-normal">{mine.feedback}</span>
+            {!mine.advice && <span className="text-sm leading-normal">{mine.feedback}</span>}
           </div>
+        )}
+        {mine.checkPassed === false && mine.advice && !changing && (
+          <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
         )}
         {mine.suggestion && !changing && (
           <div className="flex flex-col gap-2.5">

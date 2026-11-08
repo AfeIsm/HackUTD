@@ -17,6 +17,7 @@ import { ScoreGauge } from '@/components/ScoreGauge';
 import { RandomizeFinances } from '@/components/RandomizeFinances';
 import { FixPlanCard } from '@/components/FixPlanCard';
 import { AgentPanel } from '@/components/AgentPanel';
+import { SavingsGoals } from '@/components/SavingsGoals';
 import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -221,13 +222,14 @@ export default function DashboardPage() {
           value={picture.paycheck ? money0(picture.paycheck.avgAmount) : '—'}
           sub={picture.paycheck ? `Every ${picture.paycheck.cadenceDays} days · next ${dayDate(picture.paycheck.nextDate)}` : 'No regular paycheck found'}
         />
-        <SmallCard
-          label="Savings goals"
-          value={picture.goals.length ? picture.goals.map((g) => `${g.name} · ${money0(g.amount)}`).join(', ') : 'No goals yet'}
-          sub={picture.goals.length ? 'Set aside in savings' : 'Set money aside for something specific'}
-          small
-        />
       </section>
+
+      <SavingsGoals
+        picture={picture}
+        busy={busy}
+        onAdd={(g) => void send('/api/goals', 'POST', g, () => `Set aside ${money0(g.amount)} for ${g.name}.`)}
+        onRemove={(id) => void send('/api/goals', 'DELETE', { id }, () => 'Goal removed. The money is back in your free savings.')}
+      />
 
       <div className="flex flex-wrap items-start gap-5">
         <Card label="Forecast" className="flex min-w-0 flex-[1_1_420px] flex-col gap-3">
