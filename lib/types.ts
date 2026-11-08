@@ -235,3 +235,31 @@ export interface PublicUser {
   email: string;
   memberId: string | null; // links to their money data; null until they have accounts
 }
+
+// ---------- Friends + household (F6) ----------
+// Someone you're connected to. No email, no money data: just who they are.
+export interface PersonRef {
+  userId: string | null; // null = no login (e.g. a 10-year-old)
+  username: string | null;
+  name: string;
+  memberId: string | null; // their money data, if any
+}
+export type HouseholdRole = 'owner' | 'spouse' | 'dependent';
+export interface HouseholdMember extends PersonRef {
+  role: HouseholdRole;
+}
+export interface ConnectionRequest {
+  id: string;
+  kind: 'friend' | 'household';
+  role: 'spouse' | 'dependent' | null; // household invites only
+  from: PersonRef;
+  to: PersonRef;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+}
+export interface Connections {
+  friends: PersonRef[];
+  household: { owner: PersonRef; members: HouseholdMember[]; iAmOwner: boolean } | null;
+  incoming: ConnectionRequest[]; // pending, sent to me
+  sent: ConnectionRequest[]; // sent by me (pending or answered)
+}

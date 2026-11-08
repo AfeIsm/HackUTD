@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
-import { HOUSEHOLD_IDS, getPerson } from '@/lib/people';
-import { createHuddle, friendsOf, payers, respondToInvite, totalPledged, useHuddleStore } from '@/lib/huddles';
+import { PEOPLE, getPerson, lookOf } from '@/lib/people';
+import { useConnections } from '@/lib/useConnections';
+import { huddleAction, huddleRequest, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from '@/components/ui';
 
@@ -21,16 +22,23 @@ const PHASE_LABEL = {
 export default function HuddlesPage() {
   const { viewerId } = useViewer();
   const me = getPerson(viewerId);
-  const store = useHuddleStore();
+  const huddlesState = useHuddles();
   const router = useRouter();
-
-  const mine = store.huddles.filter((h) => h.participants.some((p) => p.memberId === me.id && p.joined));
-  const invites = store.invites.filter((i) => i.toId === me.id && i.status === 'pending' && i.huddleId);
+  const all = huddlesState.status === 'ready' ? huddlesState.huddles : [];
+  const mine = all.filter((h) => h.me?.joined);
+  const invites = all.filter((h) => h.me && !h.me.joined);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // create form: household + accepted friends
-  const candidates = [...(me.role === 'friend' ? [me.id] : HOUSEHOLD_IDS), ...friendsOf(store, me.id)].filter(
-    (id, i, all) => all.indexOf(id) === i,
-  );
+  // (from Mongo: your household + accepted friends who have money data)
+  const conn = useConnections();
+  const connections = conn.status === 'ready' ? conn.data : null;
+  const candidates = [
+    me.id,
+    ...(connections?.household?.members ?? []).map((m) => m.memberId),
+    ...(connections?.friends ?? []).map((f) => f.memberId),
+  ].filter((id, i, all): id is string => !!id && PEOPLE.some((p) => p.id === id) && all.indexOf(id) === i);
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
@@ -48,33 +56,34 @@ export default function HuddlesPage() {
         <a className={btn} href="#new">New huddle</a>
       </div>
 
-      {invites.map((inv) => {
-        const h = store.huddles.find((x) => x.id === inv.huddleId);
-        if (!h) return null;
+      {invites.map((h) => {
+        const from = h.participants.find((p) => p.memberId === h.createdBy)?.name ?? 'Someone';
         return (
-          <section key={inv.id} aria-label="Invite" className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-[#BFD0F5] bg-accent-bg p-6">
+          <section key={h.id} aria-label="Invite" className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-[#BFD0F5] bg-accent-bg p-6">
             <div className="flex flex-col gap-1">
               <Eyebrow className="text-[#1A3E9E]">Invite</Eyebrow>
-              <strong className="text-[17px]">{getPerson(inv.fromId).name} invited you to “{h.name}”</strong>
+              <strong className="text-[17px]">{from} invited you to “{h.name}”</strong>
               <span className="text-sm text-ink-2">
                 {money0(h.totalCost)} total · by {shortDate(h.targetDate)} · {h.participants.length} people
               </span>
             </div>
             <div className="flex gap-2">
-              <button type="button" className={btn2} onClick={() => respondToInvite(inv.id, false)}>Decline</button>
-              <button type="button" className={btn} onClick={() => respondToInvite(inv.id, true)}>Accept</button>
+              <button type="button" className={btn2} onClick={() => void huddleAction(h.id, { action: 'answerInvite', accept: false })}>Decline</button>
+              <Link href={`/huddles/${h.id}`} className={btn}>View invite</Link>
             </div>
           </section>
         );
       })}
 
+      {huddlesState.status === 'loading' && <p className="m-0 text-muted">Loading huddles…</p>}
+      {huddlesState.status === 'error' && <p className="m-0 text-bad">Couldn’t load your huddles. Refresh to try again.</p>}
+
       <section aria-label="My huddles" className="flex flex-wrap gap-5">
-        {mine.length === 0 && <Card className="flex-1"><p className="m-0 text-ink-2">No huddles yet. Start one below.</p></Card>}
+        {huddlesState.status === 'ready' && mine.length === 0 && <Card className="flex-1"><p className="m-0 text-ink-2">No huddles yet. Start one below.</p></Card>}
         {mine.map((h) => {
-          const ps = payers(h);
-          const committed = ps.filter((p) => p.committed).length;
-          const revealed = h.phase !== 'pledging';
-          const pct = revealed ? Math.min(100, (totalPledged(h) / h.totalCost) * 100) : (committed / Math.max(ps.length, 1)) * 100;
+          const committed = h.committedCount;
+          const revealed = h.totalCommitted !== null;
+          const pct = revealed ? Math.min(100, ((h.totalCommitted ?? 0) / h.totalCost) * 100) : (committed / Math.max(h.payingCount, 1)) * 100;
           return (
             <Link
               key={h.id}
@@ -94,10 +103,10 @@ export default function HuddlesPage() {
                   {h.phase === 'locked'
                     ? 'Plan locked · funding pending'
                     : revealed
-                      ? `${money0(totalPledged(h))} of ${money0(h.totalCost)} committed`
-                      : `${committed} of ${ps.length} committed`}
+                      ? `${money0(h.totalCommitted ?? 0)} of ${money0(h.totalCost)} committed`
+                      : `${committed} of ${h.payingCount} committed`}
                 </span>
-                <span className="text-muted">{h.participants.length} people · {ps.length} paying</span>
+                <span className="text-muted">{h.participants.length} people · {h.payingCount} paying</span>
               </div>
             </Link>
           );
@@ -108,14 +117,17 @@ export default function HuddlesPage() {
         id="new"
         className="box-border flex flex-col gap-5 rounded-[14px] border border-line bg-surface p-6"
         aria-label="New huddle"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          if (!valid) return;
-          const id = createHuddle({
-            name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date, createdBy: me.id,
-            members: candidates.map((id) => ({ id, isPaying: isPaying(id) })),
+          if (!valid || busy) return;
+          setBusy(true);
+          const res = await huddleRequest('/api/huddles', {
+            name: name.trim(), totalCost: parseMoney(total) ?? 0, targetDate: date,
+            members: candidates.map((id) => ({ memberId: id, isPaying: isPaying(id) })),
           });
-          router.push(`/huddles/${id}`);
+          setBusy(false);
+          setError(res.error);
+          if (res.id) router.push(`/huddles/${res.id}`);
         }}
       >
         <h2 className="m-0 text-[22px]">Start a huddle</h2>
@@ -136,14 +148,15 @@ export default function HuddlesPage() {
         <div className="flex flex-col">
           <h3 className="m-0 mb-1 text-[17px]">Who’s coming</h3>
           {candidates.map((id) => {
-            const p = getPerson(id);
+            const p = { ...getPerson(id), ...lookOf(getPerson(id).name, id) };
+            const isFriend = connections?.friends.some((f) => f.memberId === id) ?? false;
             const on = isPaying(id);
             return (
               <div key={id} className="flex items-center gap-3.5 border-t border-[#EFEFEA] py-3">
                 <Avatar initial={p.initial} color={p.color} />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="font-semibold">{p.id === me.id ? `${p.name} (you)` : p.name}</span>
-                  <span className="text-[13px] text-muted">{p.roleLabel}</span>
+                  <span className="text-[13px] text-muted">{isFriend ? 'Friend · gets an invite' : p.roleLabel}</span>
                 </div>
                 <span className="min-w-20 text-right text-sm text-ink-2">{on ? 'Paying' : 'Coming, not paying'}</span>
                 <button
@@ -159,12 +172,13 @@ export default function HuddlesPage() {
               </div>
             );
           })}
-          <Link href="/friends" className="inline-block py-3 text-[15px] font-semibold">+ Add a friend by phone number</Link>
+          <Link href="/friends" className="inline-block py-3 text-[15px] font-semibold">+ Add a friend by username</Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-muted">Each payer pledges privately. Nobody sees amounts until everyone has committed.</span>
-          <button type="submit" className={btn} disabled={!valid}>Create huddle</button>
+          <button type="submit" className={btn} disabled={!valid || busy}>{busy ? 'Creating…' : 'Create huddle'}</button>
         </div>
+        {error && <p role="alert" className="m-0 rounded-lg bg-bad-bg px-3 py-2 text-sm text-bad">{error}</p>}
       </form>
     </>
   );

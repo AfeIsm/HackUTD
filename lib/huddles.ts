@@ -1,24 +1,25 @@
-'use client';
+// Huddle phase machine + privacy filter. Pure functions (no I/O): the SERVER runs every
+// action (lib/services/huddle.ts) and only ever sends the browser viewFor(huddle, viewer).
+//
+//   pledging → (everyone committed) revealed → (fully funded) agreeing → (everyone agreed) locked
+//
+// Privacy (PLAN.md §8): during pledging others only see WHETHER you committed; after reveal
+// they see amounts. Your source account, health check result and feedback are never shared.
 
-// Huddles, friend invites and friendships, kept in browser memory for now so the whole
-// flow works on one laptop by switching "Viewing as". Resets on refresh.
-// TODO(backend): move to MongoDB + app/api/huddles routes. The privacy rules in viewFor()
-// must then run on the server (PLAN.md §8): the browser should never receive hidden data.
-
-import { useSyncExternalStore } from 'react';
-import type { DeclineReason, HuddleParticipantPublic, HuddlePhase } from './types';
+import type { DeclineReason, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
-import { getPerson } from './people';
 
 export interface Participant {
   memberId: string;
+  userId: string | null; // null = no login (kids)
+  name: string;
   isPaying: boolean;
-  joined: boolean; // friends join by accepting an invite
+  joined: boolean; // invited friends join by accepting
   pledge: number | null;
-  sourceAccountId: string | null;
-  goalId: string | null;
+  sourceAccountId: string | null; // PRIVATE
+  goalId: string | null; // PRIVATE
   committed: boolean;
-  checkPassed: boolean | null;
+  checkPassed: boolean | null; // PRIVATE
   feedback: string | null; // PRIVATE: only this member ever sees it
   suggestion: { amount: number; text: string } | null; // PRIVATE
   agreed: boolean;
@@ -27,76 +28,26 @@ export interface Participant {
 export interface Huddle {
   id: string;
   name: string;
-  totalCost: number;
+  totalCost: number; // cents
   targetDate: string;
-  createdBy: string;
+  createdBy: string; // memberId
   phase: HuddlePhase;
   round: number;
   message: string | null; // neutral group message, e.g. "Jordan requested changes: …"
   lastDecline: DeclineReason | null;
+  fairSplit: Record<string, number> | null; // amounts only, computed on the server
   participants: Participant[];
 }
 
-export interface Invite {
-  id: string;
-  fromId: string;
-  toId: string;
-  huddleId: string | null; // null = plain friend request
-  status: 'pending' | 'accepted' | 'declined';
-}
-
-interface State {
-  huddles: Huddle[];
-  invites: Invite[];
-  friendships: [string, string][];
-}
-
-const participant = (memberId: string, over: Partial<Participant> = {}): Participant => ({
-  memberId, isPaying: true, joined: true, pledge: null, sourceAccountId: null, goalId: null,
+export const newParticipant = (memberId: string, userId: string | null, name: string, over: Partial<Participant> = {}): Participant => ({
+  memberId, userId, name, isPaying: true, joined: true, pledge: null, sourceAccountId: null, goalId: null,
   committed: false, checkPassed: null, feedback: null, suggestion: null, agreed: false, ...over,
 });
 
-let state: State = {
-  huddles: [
-    {
-      id: 'orlando', name: 'Orlando trip', totalCost: 400000, targetDate: '2027-03-20', createdBy: 'alex',
-      phase: 'pledging', round: 1, message: null, lastDecline: null,
-      participants: [
-        participant('alex'),
-        participant('jordan'),
-        participant('maya'),
-        participant('leo', { isPaying: false }),
-        participant('sam', { joined: false }),
-      ],
-    },
-  ],
-  invites: [{ id: 'inv-1', fromId: 'alex', toId: 'sam', huddleId: 'orlando', status: 'pending' }],
-  friendships: [],
-};
-
-export const getHuddleState = (): State => state; // for tests (and the future API)
-
-const listeners = new Set<() => void>();
-function setState(next: State) {
-  state = next;
-  listeners.forEach((l) => l());
-}
-export function useHuddleStore(): State {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    () => state,
-    () => state,
-  );
-}
-
-// ---------- phase machine ----------
 export const payers = (h: Huddle) => h.participants.filter((p) => p.isPaying);
 export const totalPledged = (h: Huddle) => payers(h).reduce((s, p) => s + (p.committed ? p.pledge ?? 0 : 0), 0);
 
-function advance(h: Huddle): Huddle {
+export function advance(h: Huddle): Huddle {
   if (h.phase === 'locked' || h.phase === 'cancelled') return h;
   const ps = payers(h);
   const allCommitted = ps.length > 0 && ps.every((p) => p.committed);
@@ -106,35 +57,31 @@ function advance(h: Huddle): Huddle {
   return { ...h, phase: 'agreeing' };
 }
 
-function updateHuddle(id: string, fn: (h: Huddle) => Huddle) {
-  setState({ ...state, huddles: state.huddles.map((h) => (h.id === id ? advance(fn(h)) : h)) });
-}
-function updateParticipant(h: Huddle, memberId: string, fn: (p: Participant) => Participant): Huddle {
-  return { ...h, participants: h.participants.map((p) => (p.memberId === memberId ? fn(p) : p)) };
-}
+const updateParticipant = (h: Huddle, memberId: string, fn: (p: Participant) => Participant): Huddle => ({
+  ...h, participants: h.participants.map((p) => (p.memberId === memberId ? fn(p) : p)),
+});
+const resetAgreements = (h: Huddle): Huddle => ({ ...h, participants: h.participants.map((p) => ({ ...p, agreed: false })) });
 
-// ---------- actions ----------
-export function submitPledge(
-  huddleId: string, memberId: string, pledge: { amount: number; sourceAccountId: string; goalId?: string }, check: PledgeCheck,
-) {
-  updateHuddle(huddleId, (h) => {
-    // a new pledge resets agreements: everyone re-agrees to the new numbers
-    const reset = { ...h, participants: h.participants.map((p) => ({ ...p, agreed: false })) };
-    return updateParticipant(reset, memberId, (p) => ({
-      ...p,
-      pledge: pledge.amount,
-      sourceAccountId: pledge.sourceAccountId,
-      goalId: pledge.goalId ?? null,
-      committed: check.passed,
-      checkPassed: check.passed,
-      feedback: check.reason,
-      suggestion: null,
-    }));
+// ---------- actions (each returns the next huddle) ----------
+export function applyInviteAnswer(h: Huddle, memberId: string, accept: boolean): Huddle {
+  return advance({
+    ...h,
+    participants: accept
+      ? h.participants.map((p) => (p.memberId === memberId ? { ...p, joined: true } : p))
+      : h.participants.filter((p) => p.memberId !== memberId),
   });
 }
 
-export function agree(huddleId: string, memberId: string) {
-  updateHuddle(huddleId, (h) => updateParticipant(h, memberId, (p) => ({ ...p, agreed: true })));
+export function applyPledge(h: Huddle, memberId: string, pledge: { amount: number; sourceAccountId: string; goalId?: string }, check: PledgeCheck): Huddle {
+  // a new pledge resets agreements: everyone re-agrees to the new numbers
+  return advance(updateParticipant(resetAgreements(h), memberId, (p) => ({
+    ...p, pledge: pledge.amount, sourceAccountId: pledge.sourceAccountId, goalId: pledge.goalId ?? null,
+    committed: check.passed, checkPassed: check.passed, feedback: check.reason, suggestion: null,
+  })));
+}
+
+export function applyAgree(h: Huddle, memberId: string): Huddle {
+  return advance(updateParticipant(h, memberId, (p) => ({ ...p, agreed: true })));
 }
 
 const DECLINE_TEXT: Record<DeclineReason, string> = {
@@ -144,104 +91,86 @@ const DECLINE_TEXT: Record<DeclineReason, string> = {
   out: 'is out',
 };
 
-export function decline(huddleId: string, memberId: string, reason: DeclineReason) {
-  const name = getPerson(memberId).name;
-  updateHuddle(huddleId, (h) => {
-    let next: Huddle = {
-      ...h,
-      round: h.round + 1,
-      lastDecline: reason,
-      message: `${name} requested changes: ${DECLINE_TEXT[reason]}.${h.round + 1 > 3 ? ' That was the last round, so the creator decides what happens next.' : ''}`,
-      participants: h.participants.map((p) => ({ ...p, agreed: false })),
-    };
-    if (reason === 'changeMyAmount') {
-      next = updateParticipant(next, memberId, (p) => ({ ...p, committed: false, checkPassed: null, feedback: null, suggestion: null }));
-    }
-    if (reason === 'out') {
-      next = updateParticipant(next, memberId, (p) => ({ ...p, isPaying: false, pledge: null, committed: false }));
-    }
-    return next;
-  });
+export function applyDecline(h: Huddle, memberId: string, reason: DeclineReason, fairSplit: Record<string, number> | null = null): Huddle {
+  const name = h.participants.find((p) => p.memberId === memberId)?.name ?? 'Someone';
+  let next: Huddle = {
+    ...resetAgreements(h),
+    round: h.round + 1,
+    lastDecline: reason,
+    fairSplit: reason === 'unfairSplit' ? fairSplit : null,
+    message: `${name} requested changes: ${DECLINE_TEXT[reason]}.${h.round + 1 > 3 ? ' That was the last round, so the creator decides what happens next.' : ''}`,
+  };
+  if (reason === 'changeMyAmount') {
+    next = updateParticipant(next, memberId, (p) => ({ ...p, committed: false, checkPassed: null, feedback: null, suggestion: null }));
+  }
+  if (reason === 'out') {
+    next = updateParticipant(next, memberId, (p) => ({ ...p, isPaying: false, pledge: null, committed: false }));
+  }
+  return advance(next);
 }
 
-export function editHuddle(huddleId: string, changes: { totalCost?: number; targetDate?: string }) {
-  updateHuddle(huddleId, (h) => ({
-    ...h, ...changes, message: null,
-    participants: h.participants.map((p) => ({ ...p, agreed: false })),
-  }));
+export function applyEdit(h: Huddle, changes: { totalCost?: number; targetDate?: string }): Huddle {
+  return advance({ ...resetAgreements(h), ...changes, message: null });
 }
 
-export function cancelHuddle(huddleId: string) {
-  setState({ ...state, huddles: state.huddles.map((h) => (h.id === huddleId ? { ...h, phase: 'cancelled' } : h)) });
+export const applyCancel = (h: Huddle): Huddle => ({ ...h, phase: 'cancelled' });
+
+// ---------- privacy filter: the ONLY shape that leaves the server ----------
+export interface PublicParticipant {
+  memberId: string;
+  name: string;
+  isPaying: boolean;
+  joined: boolean;
+  committed: boolean;
+  pledge: number | null; // null until revealed
+  agreed: boolean | null; // null until the agreeing phase
 }
 
-export function createHuddle(input: {
-  name: string; totalCost: number; targetDate: string; createdBy: string; members: { id: string; isPaying: boolean }[];
-}): string {
-  const base = input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'huddle';
-  let id = base;
-  for (let n = 2; state.huddles.some((h) => h.id === id); n++) id = `${base}-${n}`;
-  const friends = input.members.filter((m) => getPerson(m.id).role === 'friend');
-  setState({
-    ...state,
-    huddles: [
-      ...state.huddles,
-      {
-        id, name: input.name, totalCost: input.totalCost, targetDate: input.targetDate, createdBy: input.createdBy,
-        phase: 'pledging', round: 1, message: null, lastDecline: null,
-        participants: input.members.map((m) =>
-          participant(m.id, { isPaying: m.isPaying, joined: getPerson(m.id).role !== 'friend' })),
-      },
-    ],
-    invites: [
-      ...state.invites,
-      ...friends.map((f, i) => ({
-        id: `inv-${state.invites.length + i + 1}`, fromId: input.createdBy, toId: f.id, huddleId: id, status: 'pending' as const,
-      })),
-    ],
-  });
-  return id;
+export interface HuddleClientView {
+  id: string;
+  name: string;
+  totalCost: number;
+  targetDate: string;
+  createdBy: string;
+  phase: HuddlePhase;
+  round: number;
+  message: string | null;
+  lastDecline: DeclineReason | null;
+  participants: PublicParticipant[];
+  committedCount: number;
+  payingCount: number;
+  totalCommitted: number | null; // null while pledging
+  shortfall: number | null; // null while pledging
+  fairSplit: { memberId: string; name: string; amount: number }[] | null;
+  me: Participant | null; // ONLY the viewer's own row, private fields included
 }
 
-export function sendFriendRequest(fromId: string, toId: string) {
-  setState({
-    ...state,
-    invites: [...state.invites, { id: `inv-${state.invites.length + 1}`, fromId, toId, huddleId: null, status: 'pending' }],
-  });
-}
-
-export function respondToInvite(inviteId: string, accept: boolean) {
-  const invite = state.invites.find((i) => i.id === inviteId);
-  if (!invite) return;
-  const invites = state.invites.map((i) => (i.id === inviteId ? { ...i, status: accept ? ('accepted' as const) : ('declined' as const) } : i));
-  const already = state.friendships.some(([a, b]) => (a === invite.fromId && b === invite.toId) || (a === invite.toId && b === invite.fromId));
-  const friendships: [string, string][] = accept && !already ? [...state.friendships, [invite.fromId, invite.toId]] : state.friendships;
-  const huddles = state.huddles.map((h) => {
-    if (h.id !== invite.huddleId) return h;
-    return advance({
-      ...h,
-      participants: accept
-        ? h.participants.map((p) => (p.memberId === invite.toId ? { ...p, joined: true } : p))
-        : h.participants.filter((p) => p.memberId !== invite.toId),
-    });
-  });
-  setState({ ...state, invites, friendships, huddles });
-}
-
-export function friendsOf(s: State, memberId: string): string[] {
-  return s.friendships.flatMap(([a, b]) => (a === memberId ? [b] : b === memberId ? [a] : []));
-}
-
-// ---------- privacy filter: what OTHER members may see ----------
-// Pledging: only whether each person committed. After reveal: amounts. Never source, checks or feedback.
-export function publicParticipants(h: Huddle): HuddleParticipantPublic[] {
+export function viewFor(h: Huddle, viewerMemberId: string): HuddleClientView {
   const revealed = h.phase !== 'pledging';
-  return h.participants.map((p) => ({
-    memberId: p.memberId,
-    name: getPerson(p.memberId).name,
-    isPaying: p.isPaying,
-    committed: p.committed,
-    pledge: revealed && p.committed ? p.pledge : null,
-    agreed: h.phase === 'agreeing' || h.phase === 'locked' ? p.agreed : null,
-  }));
+  const ps = payers(h);
+  const total = totalPledged(h);
+  return {
+    id: h.id, name: h.name, totalCost: h.totalCost, targetDate: h.targetDate, createdBy: h.createdBy,
+    phase: h.phase, round: h.round, message: h.message, lastDecline: h.lastDecline,
+    participants: h.participants.map((p) => ({
+      memberId: p.memberId,
+      name: p.name,
+      isPaying: p.isPaying,
+      joined: p.joined,
+      committed: p.committed,
+      pledge: revealed && p.committed ? p.pledge : null,
+      agreed: h.phase === 'agreeing' || h.phase === 'locked' ? p.agreed : null,
+    })),
+    committedCount: ps.filter((p) => p.committed).length,
+    payingCount: ps.length,
+    totalCommitted: revealed ? total : null,
+    shortfall: revealed ? Math.max(0, h.totalCost - total) : null,
+    fairSplit:
+      h.lastDecline === 'unfairSplit' && h.fairSplit && h.phase !== 'locked'
+        ? Object.entries(h.fairSplit).map(([memberId, amount]) => ({
+            memberId, amount, name: h.participants.find((p) => p.memberId === memberId)?.name ?? memberId,
+          }))
+        : null,
+    me: h.participants.find((p) => p.memberId === viewerMemberId) ?? null,
+  };
 }

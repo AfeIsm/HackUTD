@@ -51,6 +51,14 @@ function ensureIndexes(db: Db): Promise<void> {
     // Sessions: lookup by token hash; TTL index → Atlas deletes expired sessions on its own.
     db.collection('sessions').createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    // Friend/household requests: inbox lookups, and a PARTIAL unique index so there can only
+    // be one pending request per pair of people + kind (answered ones don't count).
+    db.collection('friendRequests').createIndex({ toUserId: 1, status: 1 }),
+    db.collection('friendRequests').createIndex({ fromUserId: 1, status: 1 }),
+    db.collection('friendRequests').createIndex(
+      { pairKey: 1, kind: 1 },
+      { unique: true, partialFilterExpression: { status: 'pending' }, name: 'one_pending_per_pair' },
+    ),
   ])
     .then(() => undefined)
     .catch((err) => {
