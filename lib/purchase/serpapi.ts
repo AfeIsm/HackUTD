@@ -9,7 +9,7 @@ import type { Offer, PurchaseBrief } from './types';
 
 const URL_BASE = 'https://serpapi.com/search';
 const CACHE_MS = 60 * 60_000;
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 25_000; // searches with few results can take well over 10 seconds
 const MAX_OFFERS = 20;
 const CACHE_VERSION = 'v1';
 

@@ -10,7 +10,7 @@ import { validDate } from '@/lib/engine/validation';
 import { DEMO_ASOF } from '@/lib/people';
 import { buyAnswerId, replayBuyAnswer, runBuyOptions, savedBuyAnswer, tooManyBuyRuns, type BuyEvent, type BuyQuestion } from '@/lib/agent/buyOptions';
 
-export const maxDuration = 90;
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   const viewer = await requireViewer();
