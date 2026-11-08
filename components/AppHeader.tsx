@@ -70,7 +70,7 @@ export function AppHeader() {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line py-4">
       <div className="flex flex-wrap items-center gap-6">
-        <Link href="/" className="font-display text-[22px] font-bold text-ink no-underline">
+        <Link href="/dashboard" className="font-display text-[22px] font-bold text-ink no-underline">
           Wallet Whisperer
         </Link>
         <Suspense fallback={<NavLinks pathname={null} />}>

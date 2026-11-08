@@ -4,8 +4,7 @@
 // People are found by EXACT username only: no browsing or searching users (privacy).
 
 import { ObjectId, MongoServerError, type WithId } from 'mongodb';
-import { getDb } from '@/lib/db/mongo';
-import { NO_LOGIN_MEMBERS } from '@/lib/people';
+import { getDb } from '../db/mongo';
 import type { UserDoc } from '@/lib/auth/users';
 import type { ConnectionRequest, Connections, HouseholdMember, PersonRef } from '@/lib/types';
 
@@ -55,7 +54,6 @@ async function householdOf(userId: ObjectId): Promise<Connections['household']> 
       const p = people.get(r.toUserId.toHexString());
       return p ? [{ ...p, role: r.role ?? 'dependent' }] : [];
     }),
-    ...(owner.memberId ? NO_LOGIN_MEMBERS[owner.memberId] ?? [] : []).map((k) => ({ userId: null, username: null, name: k.name, memberId: k.memberId, role: k.role })),
   ];
   return { owner, members, iAmOwner: ownerId.equals(userId) };
 }
@@ -86,6 +84,48 @@ export async function connectionsFor(userId: ObjectId): Promise<Connections> {
 
 type Result = { ok: true } | { ok: false; status: number; error: string };
 const fail = (status: number, error: string): Result => ({ ok: false, status, error });
+
+/** Leave an accepted household. An owner hands the remaining household to its next member. */
+export async function leaveHousehold(userId: ObjectId): Promise<Result> {
+  const household = await householdOf(userId);
+  const ownerId = household?.owner.userId;
+  if (!household || !ownerId) return fail(404, 'You are not in a household.');
+  const db = await getDb();
+  const col = await requests();
+  if (!household.iAmOwner) {
+    // Rejoining must require fresh consent, not revive an old sharing choice.
+    await db.collection<{ _id: string }>('householdSharing').deleteOne({ _id: `${ownerId}:${userId.toHexString()}` });
+    await col.deleteMany({ kind: 'household', fromUserId: new ObjectId(ownerId), toUserId: userId });
+    return { ok: true };
+  }
+  // Changing the owner changes the household scope; everyone starts private again.
+  await db.collection<{ _id: string }>('householdSharing').deleteMany({ _id: { $regex: `^${ownerId}:` } });
+  const accepted = await col.find({ kind: 'household', status: 'accepted', fromUserId: userId }).sort({ createdAt: 1 }).toArray();
+  const successor = accepted[0]?.toUserId;
+  if (successor) {
+    for (const member of accepted.slice(1)) {
+      await col.updateOne({ _id: member._id, kind: 'household', fromUserId: userId, status: 'accepted' }, {
+        $set: { fromUserId: successor, pairKey: pairKey(successor, member.toUserId) },
+      });
+    }
+  }
+  // Includes the successor's old membership and invitations sent by the departing owner.
+  await col.deleteMany({ kind: 'household', fromUserId: userId });
+  return { ok: true };
+}
+
+/** Either person may end a friendship; household relationships are separate. */
+export async function removeFriend(userId: ObjectId, friendUserId: string): Promise<Result> {
+  if (!ObjectId.isValid(friendUserId)) return fail(400, 'Invalid friend.');
+  const otherId = new ObjectId(friendUserId);
+  if (otherId.equals(userId)) return fail(400, 'You cannot remove yourself.');
+  const result = await (await requests()).deleteMany({
+    kind: 'friend', pairKey: pairKey(userId, otherId),
+    $or: [{ fromUserId: userId }, { toUserId: userId }],
+  });
+  // Remove pending duplicates too, so an older request cannot restore the friendship.
+  return result.deletedCount ? { ok: true } : fail(404, 'Friendship not found.');
+}
 
 /** Send a friend or household request to an exact username. */
 export async function sendRequest(
@@ -133,7 +173,7 @@ export async function respondToRequest(userId: ObjectId, requestId: string, acce
   return { ok: true };
 }
 
-/** memberIds whose full picture this user may load: their own household's members. */
+/** Household membership IDs only; these do not grant financial access. */
 export async function householdMemberIds(userId: ObjectId): Promise<string[]> {
   const h = await householdOf(userId);
   return h ? h.members.flatMap((m) => (m.memberId ? [m.memberId] : [])) : [];

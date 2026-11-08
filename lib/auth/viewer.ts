@@ -2,11 +2,10 @@
 // API routes use this instead of trusting a `member` the browser sends.
 
 import { NextResponse } from 'next/server';
-import { mongoConfigured } from '@/lib/db/mongo';
+import { getDb, mongoConfigured } from '@/lib/db/mongo';
 import { currentUser } from '@/lib/auth/session';
 import { ObjectId } from 'mongodb';
 import { PEOPLE } from '@/lib/people';
-import { householdMemberIds } from '@/lib/services/social';
 import type { PublicUser } from '@/lib/types';
 
 export interface Viewer {
@@ -28,17 +27,21 @@ export async function requireViewer(): Promise<Viewer | NextResponse> {
   if (auth instanceof NextResponse) return auth;
   const { user } = auth;
   const memberId = user.memberId;
-  if (!memberId || !PEOPLE.some((p) => p.id === memberId && p.hasAccounts)) {
+  const ready = memberId && (PEOPLE.some((p) => p.id === memberId && p.hasAccounts) ||
+    await (await getDb()).collection('members').findOne({ memberId, ownerUserId: auth.userId, status: 'ready' }));
+  if (!memberId || !ready) {
     return NextResponse.json({ error: 'Your account isn’t linked to any money data yet.' }, { status: 403 });
   }
   return { user, memberId };
 }
 
 /**
- * Whose full picture may this viewer load? Yourself, and the members of your own household
- * (from Mongo). Known gap: household should need an explicit sharing grant.
+ * Household membership alone never grants access to another account's finances.
+ * Shared categories use a dedicated endpoint; a full picture is always private.
  */
 export async function canSeePicture(viewer: Viewer, targetMemberId: string): Promise<boolean> {
   if (viewer.memberId === targetMemberId) return true;
-  return (await householdMemberIds(new ObjectId(viewer.user.id))).includes(targetMemberId);
+  // Household sharing uses category-specific projections at /api/household.
+  // A legacy broad grant must not bypass the current toggles.
+  return false;
 }

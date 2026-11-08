@@ -63,6 +63,22 @@ const updateParticipant = (h: Huddle, memberId: string, fn: (p: Participant) => 
 const resetAgreements = (h: Huddle): Huddle => ({ ...h, participants: h.participants.map((p) => ({ ...p, agreed: false })) });
 
 // ---------- actions (each returns the next huddle) ----------
+/** Removing a member invalidates approvals. A one-person group has no remaining workflow. */
+export function applyLeave(h: Huddle, memberId: string): Huddle | null {
+  const participants = h.participants.filter((p) => p.memberId !== memberId);
+  if (participants.length <= 1) return null;
+  const owner = h.createdBy === memberId
+    ? participants.find((p) => p.joined && p.userId)?.memberId ?? participants.find((p) => p.userId)?.memberId
+    : h.createdBy;
+  // Managed children cannot own a group without an account holder to administer it.
+  if (!owner) return null;
+  const name = h.participants.find((p) => p.memberId === memberId)?.name ?? 'A member';
+  return advance({ ...h, createdBy: owner, participants: participants.map((p) => ({ ...p, agreed: false })),
+    phase: h.phase === 'cancelled' ? 'cancelled' : 'pledging', fairSplit: null, lastDecline: null,
+    message: `${name} left the huddle. Please review the updated commitments.`,
+  });
+}
+
 export function applyInviteAnswer(h: Huddle, memberId: string, accept: boolean): Huddle {
   return advance({
     ...h,

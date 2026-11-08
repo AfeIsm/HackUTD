@@ -28,7 +28,7 @@ export async function getDb(): Promise<Db> {
       throw err;
     });
 
-  const db = (await globalThis._wwMongo).db(process.env.MONGODB_DB || 'huddle');
+  const db = (await globalThis._wwMongo).db(process.env.MONGODB_DB || 'walletwhisperer');
   await ensureIndexes(db);
   return db;
 }
@@ -39,6 +39,8 @@ export async function getDb(): Promise<Db> {
 //  - healthSnapshots (memberId, createdAt desc): latest score + score history, fast.
 function ensureIndexes(db: Db): Promise<void> {
   globalThis._wwIndexes ??= Promise.all([
+    db.collection('members').createIndex({ memberId: 1 }, { unique: true }),
+    db.collection('financialPictures').createIndex({ memberId: 1 }, { unique: true }),
     db.collection('healthSnapshots').createIndex({ memberId: 1, createdAt: -1 }),
     db.collection('fixPlans').createIndex({ memberId: 1, dataHash: 1 }, { unique: true }),
     db.collection('affordAnswers').createIndex({ memberId: 1, dataHash: 1, questionKey: 1 }, { unique: true }),

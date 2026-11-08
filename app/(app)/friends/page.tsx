@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useConnections } from '@/lib/useConnections';
+import { useState } from 'react';
+import { useConnections, sendConnectionChange } from '@/lib/useConnections';
 import { AddByUsername } from '@/components/AddByUsername';
 import { PersonRow } from '@/components/PersonRow';
 import { RequestCards } from '@/components/RequestCards';
@@ -9,6 +10,14 @@ import { Card, Eyebrow, Pill } from '@/components/ui';
 
 export default function FriendsPage() {
   const conn = useConnections();
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function remove(userId: string) {
+    if (removing) return;
+    setRemoving(userId);
+    setError(await sendConnectionChange(`/api/friends/${encodeURIComponent(userId)}`, 'DELETE', {}));
+    setRemoving(null);
+  }
   const data = conn.status === 'ready' ? conn.data : null;
   const friendIds = new Set(data?.friends.map((f) => f.userId));
   // Requests I sent that aren't friendships yet (pending or declined)
@@ -33,11 +42,18 @@ export default function FriendsPage() {
 
         <Card label="Your friends" className="flex min-w-0 flex-[999_1_480px] flex-col gap-1">
           <h2 className="m-0 mb-2 text-[22px]">Your friends</h2>
+          {error && <p role="alert" className="m-0 text-sm text-bad">{error}</p>}
           {conn.status === 'loading' && <p className="m-0 text-muted">Loading…</p>}
           {conn.status === 'error' && <p className="m-0 text-bad">Couldn’t load your friends. Refresh to try again.</p>}
           {data && data.friends.length === 0 && sent.length === 0 && <p className="m-0 text-ink-2">No friends yet. Add someone by username.</p>}
           {data?.friends.map((f) => (
-            <PersonRow key={f.userId} person={f} right={<Pill className="bg-good-bg text-good">Friends</Pill>} />
+            <PersonRow key={f.userId} person={f} right={
+              <button type="button" disabled={removing !== null || !f.userId} aria-label={`Remove ${f.name} as a friend`}
+                className="min-h-11 cursor-pointer rounded-[10px] px-3 text-sm font-semibold text-bad hover:bg-bad-bg disabled:cursor-wait disabled:opacity-50"
+                onClick={() => { if (f.userId) void remove(f.userId); }}>
+                {removing === f.userId ? 'Removing…' : 'Remove friend'}
+              </button>
+            } />
           ))}
           {sent.map((r) => (
             <PersonRow

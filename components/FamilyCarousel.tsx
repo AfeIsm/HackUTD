@@ -3,7 +3,7 @@
 // Coverflow carousel: the selected person in front, neighbors smaller and darkened behind.
 // Drag/swipe, arrow buttons, clicking a back card, or the name buttons all move it. It loops.
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import type { HealthResult } from '@/lib/types';
 import { Avatar, Eyebrow, StatusPill, TONE } from './ui';
 
@@ -13,10 +13,11 @@ export interface FamilySlide {
   roleLabel: string;
   initial: string;
   color: string;
-  result: HealthResult | null; // null = no accounts / no score
+  result: Pick<HealthResult, 'score' | 'overall'> | null;
   loading: boolean;
   summary: string;
   facts: { k: string; v: string }[];
+  details?: ReactNode;
 }
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
@@ -29,12 +30,14 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [step, setStep] = useState(380); // px between card spots, measured when a drag starts
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const detailId = useId();
   const drag = useRef({ startX: 0, moved: false, captured: false, pointerId: 0 });
 
   if (n === 0) return null;
   const current = mod(idx, n);
   const pos = idx - (dragging ? dx / step : 0);
-  const go = (next: number) => setIdx(next);
+  const go = (next: number) => { setExpandedId(null); setIdx(next); };
   const goTo = (k: number) => {
     let d = mod(k - idx, n);
     if (d >= n / 2) d -= n;
@@ -42,10 +45,10 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
   };
 
   return (
-    <section aria-roledescription="carousel" aria-label="Family financial health" className="flex flex-col gap-5 rounded-[14px] border border-line bg-surface p-6">
+    <section aria-roledescription="carousel" aria-label="Household overview" className="flex flex-col gap-5 rounded-[14px] border border-line bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <Eyebrow>Family financial health</Eyebrow>
+          <Eyebrow>Household at a glance</Eyebrow>
           <span className="text-sm text-muted">{slides[current].name} · {current + 1} of {n}</span>
         </div>
         <div className="flex gap-2">
@@ -55,10 +58,11 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
       </div>
 
       <div
-        className="relative -mx-6 h-[580px] touch-pan-y select-none overflow-hidden rounded-2xl bg-[#EAEAE4]"
+        className="relative -mx-6 h-[480px] touch-pan-y select-none overflow-hidden rounded-2xl bg-[#EAEAE4]"
         style={{ cursor: dragging ? 'grabbing' : 'grab' }}
         onPointerDown={(e) => {
           if (e.button > 0) return;
+          if ((e.target as HTMLElement).closest('button, a, input')) return;
           drag.current = { startX: e.clientX, moved: false, captured: false, pointerId: e.pointerId };
           setStep((e.currentTarget.offsetWidth || 800) * CARD_WIDTH * SPACING);
           setDragging(true);
@@ -105,7 +109,7 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
                 onClick={() => {
                   if (!drag.current.moved && !isFront) goTo(k);
                 }}
-                className="absolute bottom-6 top-6 box-border flex flex-wrap content-start items-stretch gap-6 overflow-hidden rounded-[18px] border border-line bg-white p-5 shadow-[0_16px_40px_rgba(22,24,29,0.16)]"
+                className="absolute bottom-6 top-6 box-border flex flex-col gap-3 overflow-hidden rounded-[18px] border border-line bg-white p-4 sm:p-6 shadow-[0_16px_40px_rgba(22,24,29,0.16)]"
                 style={{
                   left: `${(1 - CARD_WIDTH) * 50}%`,
                   width: `${CARD_WIDTH * 100}%`,
@@ -118,6 +122,15 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
                 }}
               >
                 <SlideBody s={s} />
+                {s.details && <button type="button" tabIndex={isFront ? 0 : -1}
+                  aria-expanded={isFront && expandedId === s.id} aria-controls={isFront ? detailId : undefined}
+                  aria-label={`${expandedId === s.id ? 'Hide' : 'Expand'} ${s.name} details`}
+                  className="mt-auto flex min-h-11 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-xl border border-line px-3 text-sm font-semibold hover:bg-soft"
+                  onClick={(event) => { event.stopPropagation(); if (isFront) setExpandedId(expandedId === s.id ? null : s.id); }}>
+                  {expandedId === s.id ? 'Hide details' : 'View all shared details'}
+                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className={`shrink-0 transition-transform ${expandedId === s.id ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6" /></svg>
+                </button>}
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 rounded-[18px] bg-ink"
@@ -127,6 +140,10 @@ export function FamilyCarousel({ slides }: { slides: FamilySlide[] }) {
             );
           })}
         </div>
+      </div>
+      <div id={detailId} role="region" aria-label={`${slides[current].name} shared details`}
+        hidden={expandedId !== slides[current].id} className="min-w-0">
+        {expandedId === slides[current].id ? slides[current].details : null}
       </div>
       <p className="m-0 text-center text-[13px] text-muted">Drag or swipe the card, or click a card in the back to bring it forward</p>
 
@@ -158,52 +175,28 @@ function SlideBody({ s }: { s: FamilySlide }) {
   const tint = s.result ? TONE[s.result.overall].tint : 'bg-bg';
   return (
     <>
-      <div className={`flex flex-[1_1_280px] flex-col gap-[18px] rounded-[14px] p-6 ${tint}`}>
+      <div className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-[14px] p-3 sm:p-4 ${tint}`}>
         <div className="flex items-center gap-3.5">
-          <Avatar initial={s.initial} color={s.color} size={56} />
+          <Avatar initial={s.initial} color={s.color} size={40} />
           <div className="flex flex-col">
-            <h2 className="m-0 text-[26px]">{s.name}</h2>
+            <h2 className="m-0 text-xl sm:text-[24px]">{s.name}</h2>
             <span className="text-sm text-ink-2">{s.roleLabel}</span>
           </div>
         </div>
         <div className="flex items-baseline gap-3">
-          <span className="font-display text-[64px] font-bold leading-none">{s.loading ? '…' : s.result ? (s.result.score ?? '—') : '—'}</span>
+          <span className="font-display text-[42px] font-bold leading-none">{s.loading ? '…' : s.result ? (s.result.score ?? '—') : '—'}</span>
           {s.result && <StatusPill status={s.result.overall} />}
+          {!s.result && <span className="text-xs text-muted">Health score private</span>}
         </div>
         <p className="m-0 text-sm leading-normal text-ink-2">{s.summary}</p>
         <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm text-ink-2">
-          {s.facts.map((f) => (
+          {s.facts.slice(0, 3).map((f) => (
             <li key={f.k} className="flex justify-between gap-2">
               <span>{f.k}</span>
               <strong className="text-ink">{f.v}</strong>
             </li>
           ))}
         </ul>
-      </div>
-      <div className="flex min-w-0 flex-[999_1_420px] flex-col gap-1">
-        {s.result ? (
-          s.result.indicators.map((i) => (
-            <div key={i.key} className="flex flex-col gap-1.5 border-b border-[#EFEFEA] py-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-[15px] font-semibold">
-                  {i.label} <span className="text-xs font-normal text-muted">· {i.weight}%</span>
-                </span>
-                <span className="flex items-center gap-2.5">
-                  <span className="font-display font-semibold">{i.display}</span>
-                  <StatusPill status={i.status} className="min-w-16 justify-center" />
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-soft">
-                <div className={`h-2 ${TONE[i.status].bar}`} style={{ width: i.status === 'green' ? '100%' : i.status === 'yellow' ? '50%' : '6%' }} />
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="box-border flex h-full flex-col justify-center gap-2.5 rounded-[14px] border border-dashed border-line-2 p-6">
-            <h3 className="m-0 text-lg">{s.loading ? 'Loading…' : 'No health score'}</h3>
-            {!s.loading && <p className="m-0 leading-normal text-ink-2">{s.summary}</p>}
-          </div>
-        )}
       </div>
     </>
   );

@@ -5,9 +5,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { ObjectId } from 'mongodb';
-import { getDb } from '@/lib/db/mongo';
-import { SESSION_COOKIE, SESSION_DAYS } from '@/lib/auth/cookie';
-import { findUserById, toPublicUser } from '@/lib/auth/users';
+import { getDb } from '../db/mongo';
+import { SESSION_COOKIE, SESSION_DAYS } from './cookie';
+import { findUserById, toPublicUser } from './users';
 import type { PublicUser } from '@/lib/types';
 
 interface SessionDoc {
@@ -19,6 +19,19 @@ interface SessionDoc {
 
 const sessions = async () => (await getDb()).collection<SessionDoc>('sessions');
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+const browserCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+});
+
+/** Called only after validating the login; converts older persistent cookies too. */
+export async function refreshBrowserSessionCookie(): Promise<void> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) store.set(SESSION_COOKIE, token, browserCookieOptions());
+}
 
 /** Create a session and set the cookie. Call from a route handler. */
 export async function startSession(userId: ObjectId): Promise<void> {
@@ -26,13 +39,8 @@ export async function startSession(userId: ObjectId): Promise<void> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await (await sessions()).insertOne({ tokenHash: hashToken(token), userId, createdAt: now, expiresAt });
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true, // page JavaScript can't read it
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production', // http://localhost and LAN phone testing still work in dev
-    path: '/',
-    expires: expiresAt,
-  });
+  // No expires/maxAge: the browser holds this only for its current session.
+  (await cookies()).set(SESSION_COOKIE, token, browserCookieOptions());
 }
 
 /** Delete the session in Mongo and clear the cookie. */
