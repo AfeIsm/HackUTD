@@ -254,7 +254,8 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
     const check = checkPledge(picture, {
       amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}),
     }, d.targetDate, DEMO_ASOF);
-    const flag = !check.passed;
+    // Pledged despite a warning? They already know, so only flag it if the money is now gone.
+    const flag = !check.passed || (!check.safe && !p.warning);
     if (flag) atRisk++;
     const riskReason = flag ? check.reason : null;
     const riskScore = flag ? check.scoreAfter : null;
@@ -304,7 +305,7 @@ export async function finishSearch(huddleId: string, runId: string, patch: Parti
 /** Store Nemotron's advice on a failed pledge, only if that same pledge is still the current one. */
 export async function saveFailedPledgeCoach(f: FailedPledge, memberId: string, note: CoachNote | null): Promise<void> {
   await (await huddles()).updateOne(
-    { _id: f.huddleId, participants: { $elemMatch: { memberId, checkPassed: false, pledge: f.pledge, sourceAccountId: f.sourceAccountId, coachState: 'thinking' } } },
+    { _id: f.huddleId, participants: { $elemMatch: { memberId, pledge: f.pledge, sourceAccountId: f.sourceAccountId, coachState: 'thinking' } } },
     { $set: { 'participants.$.coach': note, 'participants.$.coachState': note ? 'ready' : 'unavailable', updatedAt: new Date() }, $inc: { version: 1 } },
   );
 }

@@ -57,10 +57,13 @@ describe('immediate-funding Huddle checks', () => {
     expect(checkPledge(alex, { amount: 90000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(false);
     expect(capacity(alex, '2027-03-20', ASOF)).toBe(0);
   });
-  it('yellow requires separate acknowledgement and is not silently committed', () => {
+  it('a risky pledge is allowed, but warns and names the bill at stake', () => {
     const r = checkPledge(alex, { amount: 100, sourceAccountId: 'a1' }, '2027-03-20', ASOF);
-    expect(r.passed).toBe(false); expect(r.requiresAcknowledgement).toBe(true);
+    expect(r.passed).toBe(true); expect(r.safe).toBe(false);
+    expect(r.warning).toMatch(/still need to pay Rent \(\$1,200, due Dec 1\)/);
+    expect(r.reason).toBe(r.warning);
   });
+  it('safe stays green-only, so "you can add this and stay healthy" stays true', () => expect(capacity(alex, '2027-03-20', ASOF)).toBe(0));
   it('a funded green exact-account contribution can pass', () => expect(checkPledge(healthy, { amount: 12000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(true));
   it('fair split never exceeds available capacities and preserves exact cents', () => {
     const split = fairSplit(101, { a: 50, b: 100 });

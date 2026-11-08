@@ -21,10 +21,10 @@ const big = { amount: 480000, sourceAccountId: 'a1' };
 describe('pledgeAdvice', () => {
   it('finds an amount that really passes, below the one that failed', () => {
     const a = pledgeAdvice(green, big, TARGET, ASOF)!;
-    expect(checkPledge(green, big, TARGET, ASOF).passed).toBe(false);
+    expect(checkPledge(green, big, TARGET, ASOF).safe).toBe(false);
     expect(a.safeToday).toBeGreaterThan(0);
     expect(a.safeToday).toBeLessThan(big.amount);
-    expect(checkPledge(green, { ...big, amount: a.safeToday }, TARGET, ASOF).passed).toBe(true);
+    expect(checkPledge(green, { ...big, amount: a.safeToday }, TARGET, ASOF).safe).toBe(true);
   });
 
   it('splits the gap across the weeks and paychecks before the pay-by date', () => {

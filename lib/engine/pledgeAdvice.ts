@@ -37,7 +37,7 @@ const MAX_CUTS = 4;
 const ceilDollar = (cents: number) => Math.ceil(cents / 100) * 100;
 
 function safeAmount(p: FinancialPicture, pledge: Pledge, targetDate: string, asOf: string): number {
-  const passes = (amount: number) => checkPledge(p, { ...pledge, amount }, targetDate, asOf).passed;
+  const passes = (amount: number) => checkPledge(p, { ...pledge, amount }, targetDate, asOf).safe;
   let low = 0;
   let high = pledge.amount - 1;
   while (low < high) {
@@ -70,7 +70,7 @@ export function pledgeAdvice(p: FinancialPicture, pledge: Pledge, targetDate: st
   const check = checkPledge(p, pledge, targetDate, asOf);
   const before = scoreHealth(p, { asOf });
   const owned = p.accounts.some((a) => a.id === pledge.sourceAccountId && a.ownerMemberId === p.memberId);
-  if (check.passed || !owned || before.score === null || check.scoreAfter === null) return null;
+  if (check.safe || !owned || before.score === null || check.scoreAfter === null) return null;
 
   const safeToday = safeAmount(p, pledge, targetDate, asOf);
   const gap = pledge.amount - safeToday;

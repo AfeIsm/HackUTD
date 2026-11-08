@@ -28,7 +28,7 @@ export async function coachFailedPledge(memberId: string, f: FailedPledge): Prom
     const facts = a.notGreenNow
       ? 'My health score is not green yet, so no amount can pass until that is fixed.'
       : `Our engine says ${money0(a.safeToday)} is the most I can pledge today, so I am ${money0(a.gap)} short of what I wanted, or ${money0(a.weeklyToSave)} a week until then.`;
-    const question = `My ${money0(f.pledge)} pledge to the group plan "${f.name}" failed its private health check. It would be paid today from account ${f.sourceAccountId}, and the group pays by ${shortDate(f.targetDate)}. ${facts} Look at my paychecks, bills, subscriptions, spending by category and savings goals. Tell me specifically which subscriptions to cancel and which kinds of spending to cut back on so I can make this pledge, and test those changes together with the pledge.`;
+    const question = `My ${money0(f.pledge)} pledge to the group plan "${f.name}" is risky for my finances. It would be paid today from account ${f.sourceAccountId}, and the group pays by ${shortDate(f.targetDate)}. ${facts} Look at my paychecks, bills, subscriptions, spending by category and savings goals. Tell me specifically which subscriptions to cancel and which kinds of spending to cut back on so I can make this pledge, and test those changes together with the pledge.`;
     const pledge = { amount: f.pledge / 100, date: DEMO_ASOF, accountId: f.sourceAccountId, label: `${f.name} pledge`, ...(f.goalId ? { goalId: f.goalId } : {}) };
     const answer = await runAgent(picture, question, DEMO_ASOF, () => {}, pledge);
     // A clean "yes" can't stand here: the real pledge check, which also tests the account's cash, just failed.

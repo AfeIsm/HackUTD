@@ -28,12 +28,21 @@ describe('Huddle phase machine + privacy filter', () => {
     const h = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('leo', null, 'Leo'), newParticipant('sam', 'u2', 'Sam')]);
     expect(applyLeave(h, 'alex')?.createdBy).toBe('sam');
   });
-  it('does not commit an unaffordable or yellow pledge, and never leaks the account', () => {
-    const pledge = { amount: 100, sourceAccountId: 'a1' };
+  it('does not commit money the account does not have, and never leaks the account', () => {
+    const pledge = { amount: 90000000, sourceAccountId: 'a1' };
     const h = applyPledge(huddle(), 'alex', pledge, checkPledge(alex, pledge, '2027-03-20', ASOF));
     expect(h.participants[0].committed).toBe(false);
     expect(h.participants[0].sourceAccountId).toBe('a1');
     expect(JSON.stringify(viewFor(h, 'someone-else'))).not.toContain('a1');
+  });
+
+  it('commits a yellow pledge with a warning only that person can see', () => {
+    const two = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('sam', 'u2', 'Sam')], 1000);
+    const pledge = { amount: 100, sourceAccountId: 'a1' };
+    const h = applyPledge(two, 'alex', pledge, checkPledge(alex, pledge, '2027-03-20', ASOF));
+    expect(h.participants[0].committed).toBe(true);
+    expect(viewFor(h, 'alex').me?.warning).toMatch(/Rent/);
+    expect(JSON.stringify(viewFor(h, 'sam'))).not.toMatch(/Rent|advise/);
   });
 
   it('a green contribution can progress to agreement and lock', () => {
@@ -45,7 +54,7 @@ describe('Huddle phase machine + privacy filter', () => {
 
   it('hides amounts from others while pledging, shows them after reveal', () => {
     const two = huddle([newParticipant('alex', 'u1', 'Alex'), newParticipant('sam', 'u2', 'Sam')], 1000);
-    const pass = { passed: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
+    const pass = { passed: true, safe: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
     const one = applyPledge(two, 'alex', { amount: 300, sourceAccountId: 'a1' }, pass);
     const samView = viewFor(one, 'sam');
     expect(one.phase).toBe('pledging');
@@ -69,7 +78,7 @@ describe('Huddle phase machine + privacy filter', () => {
   });
 
   it('a decline gives a neutral group message with no financial details', () => {
-    const pass = { passed: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
+    const pass = { passed: true, safe: true, scoreBefore: 90, scoreAfter: 88, reason: 'ok' };
     const h = applyPledge(huddle(), 'alex', { amount: 100, sourceAccountId: 'a1' }, pass);
     const d = applyDecline(h, 'alex', 'unfairSplit', { alex: 100 });
     expect(d.message).toBe('Alex requested changes: the split feels unfair.');

@@ -36,7 +36,7 @@ export function PledgeCoach({ mine, advice, busy, onPledge }: {
       <div className="flex flex-col gap-1">
         <strong className="text-sm">How much to save</strong>
         {advice.notGreenNow ? (
-          <p className="m-0 text-sm leading-normal text-ink-2">Your health score isn’t green yet, so no pledge can pass today. Get to green first.</p>
+          <p className="m-0 text-sm leading-normal text-ink-2">Your health score isn’t green yet, so any pledge adds risk. Getting to green first is safer.</p>
         ) : advice.safeToday > 0 ? (
           <p className="m-0 text-sm leading-normal text-ink-2">You can safely pledge {money0(advice.safeToday)} today.</p>
         ) : (

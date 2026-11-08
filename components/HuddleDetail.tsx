@@ -298,10 +298,18 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
   }
 
   const committedBox = (
-    <div className="flex flex-col gap-1.5 rounded-xl bg-good-bg p-4 text-[#0D5A2E]">
-      <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
-      <span className="text-sm">{mine.feedback}</span>
-    </div>
+    <>
+      <div role={mine.warning ? 'alert' : undefined} className={`flex flex-col gap-1.5 rounded-xl p-4 ${mine.warning ? 'bg-warn-bg text-warn' : 'bg-good-bg text-[#0D5A2E]'}`}>
+        <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
+        <span className="text-sm leading-normal">{mine.feedback}</span>
+        {mine.warning && h.phase === 'pledging' && (
+          <button type="button" className={`${btn2} mt-1 self-start`} onClick={() => setChanging(true)}>Change my amount</button>
+        )}
+      </div>
+      {mine.warning && mine.advice && (
+        <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
+      )}
+    </>
   );
 
   const editTotal = isCreator && (h.phase === 'revealed' || h.phase === 'agreeing') && <CreatorControls h={h} run={run} busy={busy} />;

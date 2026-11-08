@@ -37,6 +37,7 @@ export interface Participant {
   coach?: CoachNote | null; // PRIVATE: only this member ever sees it
   advice?: PledgeAdvice | null; // PRIVATE: the engine's numbers for a pledge that failed its check
   coachState?: 'thinking' | 'ready' | 'unavailable' | null; // PRIVATE: Nemotron's advice on that pledge
+  warning?: string | null; // PRIVATE: committed anyway, against this advice
 }
 
 export interface Huddle {
@@ -117,7 +118,7 @@ export function applyPledge(h: Huddle, memberId: string, pledge: { amount: numbe
     ...p, pledge: pledge.amount, sourceAccountId: pledge.sourceAccountId, goalId: pledge.goalId ?? null,
     committed: check.passed, checkPassed: check.passed, feedback: check.reason, suggestion: null,
     atRisk: false, riskReason: null, riskScore: null, coach: null, // a fresh check replaces any old warning
-    advice, coachState: advice ? 'thinking' : null,
+    advice, coachState: advice ? 'thinking' : null, warning: check.warning ?? null,
   })));
 }
 
