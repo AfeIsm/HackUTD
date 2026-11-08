@@ -76,4 +76,26 @@ describe('Huddle phase machine + privacy filter', () => {
     expect(viewFor(d, 'alex').fairSplit).toEqual([{ memberId: 'alex', name: 'Alex', amount: 100 }]);
     expect(d.round).toBe(2);
   });
+
+  it('a locked commitment that stops passing its check warns everyone, but only its owner sees why', () => {
+    const ps = ['alex', 'sam'].map((id) => newParticipant(id, id, id, { committed: true, agreed: true, pledge: 100, sourceAccountId: 'acct-' + id }));
+    ps[1] = { ...ps[1], atRisk: true, riskReason: 'leaves a red assessment', riskScore: 42 };
+    const h: Huddle = { ...huddle(ps), phase: 'locked' };
+    const alexView = viewFor(h, 'alex');
+    expect(alexView.atRiskCount).toBe(1);
+    expect(JSON.stringify(alexView)).not.toContain('red assessment');
+    expect(JSON.stringify(alexView)).not.toContain('42');
+    expect(alexView.participants.some((p) => 'atRisk' in p)).toBe(false); // never says WHO
+    const samView = viewFor(h, 'sam');
+    expect(samView.me?.atRisk).toBe(true);
+    expect(samView.me?.riskScore).toBe(42);
+    expect(viewFor({ ...h, phase: 'cancelled' }, 'alex').atRiskCount).toBe(0);
+  });
+
+  it('a new pledge clears an old warning', () => {
+    const p = newParticipant('alex', 'u1', 'Alex', { atRisk: true, riskReason: 'x', riskScore: 10 });
+    const pledge = { amount: 100, sourceAccountId: 'a1' };
+    const h = applyPledge(huddle([p]), 'alex', pledge, checkPledge(rich, pledge, '2027-03-20', ASOF));
+    expect(h.participants[0]).toMatchObject({ atRisk: false, riskReason: null, riskScore: null });
+  });
 });

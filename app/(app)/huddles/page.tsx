@@ -97,7 +97,10 @@ export default function HuddlesPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <h2 className="m-0 text-[22px]">{h.name}</h2>
-                <Pill className={PHASE_LABEL[h.phase].className}>{PHASE_LABEL[h.phase].label}</Pill>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {h.atRiskCount > 0 && <Pill className="bg-bad-bg text-bad">⚠ Not affordable</Pill>}
+                  <Pill className={PHASE_LABEL[h.phase].className}>{PHASE_LABEL[h.phase].label}</Pill>
+                </div>
               </div>
               <span className="text-[15px] text-ink-2">{money0(h.totalCost)} · by {shortDate(h.targetDate)}</span>
               <div className="h-2 overflow-hidden rounded-full bg-soft">

@@ -96,6 +96,7 @@ export function HuddleDetail({ id }: { id: string }) {
         })}
       </ol>
 
+      <RiskBanner h={h} />
       {h.message && (
         <p role="status" className="m-0 rounded-xl border border-line bg-surface px-4 py-3 text-[15px]">
           {h.message}
@@ -433,6 +434,34 @@ function Funding({ title, pct, note, done = false }: { title: string; pct: numbe
         <div className={`h-2.5 transition-[width] duration-500 ${done ? 'bg-good-ring' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="m-0 text-sm text-muted">{note}</p>
+    </div>
+  );
+}
+
+// Shown to EVERYONE in the huddle when a commitment stops passing its health check (even after
+// lock). The person it belongs to sees their own numbers; everyone else only sees that one is at risk.
+function RiskBanner({ h }: { h: HuddleClientView }) {
+  if (h.atRiskCount === 0) return null;
+  const mine = h.me?.committed && h.me.atRisk ? h.me : null;
+  const others = h.atRiskCount - (mine ? 1 : 0);
+  const after = mine?.riskScore ?? null;
+  const color = after === null ? null : after >= 75 ? 'green' : after >= 50 ? 'yellow' : 'red';
+  return (
+    <div role="alert" className="flex flex-col gap-1.5 rounded-xl border border-bad-ring bg-bad-bg px-4 py-3 text-[15px] text-bad">
+      <strong className="text-[16px]">⚠ This huddle’s plan is no longer affordable</strong>
+      {mine && (
+        <p className="m-0">
+          Your {money0(mine.pledge ?? 0)} commitment no longer fits your finances.
+          {after !== null && <> Paying it now would drop your health score to <b>{after} ({color})</b>.</>}
+          {mine.riskReason && <> {mine.riskReason}</>} Undo the recent spending or talk to the group before {shortDate(h.targetDate)}.
+        </p>
+      )}
+      {others > 0 && (
+        <p className="m-0">
+          {mine ? 'Also, ' : ''}{others === 1 ? 'one member’s commitment' : `${others} members’ commitments`} in this huddle {others === 1 ? 'is' : 'are'} no
+          longer affordable after a change in their finances. The group may come up short; check in with each other before {shortDate(h.targetDate)}.
+        </p>
+      )}
     </div>
   );
 }

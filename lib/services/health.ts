@@ -7,6 +7,7 @@ import { getDb, mongoConfigured } from '../db/mongo';
 import { scoreHealth } from '../engine/health';
 import { DEMO_ASOF } from '../people';
 import { buildPicture } from './picture';
+import { recheckCommitments } from './huddle';
 
 export interface SnapshotDoc {
   memberId: string;
@@ -34,6 +35,11 @@ export async function runHealthCheck(memberId: string, trigger: string): Promise
 
   const now = new Date();
   const result = scoreHealth(loaded.picture, { asOf: DEMO_ASOF, trigger, checkedAt: now.toISOString() });
+  if (mongoConfigured()) {
+    // New money data → are this member's huddle commitments (even locked ones) still affordable?
+    await recheckCommitments(memberId, loaded.picture).catch((err: Error) =>
+      console.warn(`Could not re-check huddle commitments for ${memberId}:`, err.message));
+  }
   if (!mongoConfigured() || !loaded.saved) {
     return { result, picture: loaded.picture, source: loaded.source, saved: false, unchanged: false, history: [] };
   }
