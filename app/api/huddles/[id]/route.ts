@@ -30,6 +30,10 @@ function parse(b: Record<string, unknown>): HuddleAction | null {
       };
     case 'cancel':
       return { action: 'cancel' };
+    case 'leave':
+      return { action: 'leave' };
+    case 'delete':
+      return { action: 'delete' };
     default:
       return null;
   }

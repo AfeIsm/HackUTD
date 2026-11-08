@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { parseMoney } from '@/lib/engine/money';
 import { money0, shortDate } from '@/lib/format';
-import { PEOPLE, getPerson, lookOf } from '@/lib/people';
+import { PEOPLE, lookOf } from '@/lib/people';
 import { useConnections } from '@/lib/useConnections';
 import { huddleAction, huddleRequest, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
@@ -20,8 +20,7 @@ const PHASE_LABEL = {
 } as const;
 
 export default function HuddlesPage() {
-  const { viewerId } = useViewer();
-  const me = getPerson(viewerId);
+  const { person: me } = useViewer();
   const huddlesState = useHuddles();
   const router = useRouter();
   const all = huddlesState.status === 'ready' ? huddlesState.huddles : [];
@@ -38,13 +37,19 @@ export default function HuddlesPage() {
     me.id,
     ...(connections?.household?.members ?? []).map((m) => m.memberId),
     ...(connections?.friends ?? []).map((f) => f.memberId),
-  ].filter((id, i, all): id is string => !!id && PEOPLE.some((p) => p.id === id) && all.indexOf(id) === i);
+  ].filter((id, i, all): id is string => !!id && all.indexOf(id) === i);
+  const personFor = (id: string) => {
+    if (id === me.id) return me;
+    const connection = [...(connections?.household?.members ?? []), ...(connections?.friends ?? [])].find((p) => p.memberId === id);
+    return { id, name: connection?.name ?? 'Member', ...lookOf(connection?.name ?? 'Member', id),
+      roleLabel: PEOPLE.find((p) => p.id === id)?.roleLabel ?? 'Member' };
+  };
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [date, setDate] = useState('');
   const [paying, setPaying] = useState<Record<string, boolean>>({});
-  const isPaying = (id: string) => paying[id] ?? getPerson(id).roleLabel !== 'Dependent · 10';
-  const valid = name.trim() && (parseMoney(total) ?? 0) > 0 && date;
+  const isPaying = (id: string) => paying[id] ?? id !== 'leo';
+  const valid = candidates.length >= 2 && name.trim() && (parseMoney(total) ?? 0) > 0 && date;
 
   return (
     <>
@@ -148,7 +153,7 @@ export default function HuddlesPage() {
         <div className="flex flex-col">
           <h3 className="m-0 mb-1 text-[17px]">Who’s coming</h3>
           {candidates.map((id) => {
-            const p = { ...getPerson(id), ...lookOf(getPerson(id).name, id) };
+            const p = personFor(id);
             const isFriend = connections?.friends.some((f) => f.memberId === id) ?? false;
             const on = isPaying(id);
             return (

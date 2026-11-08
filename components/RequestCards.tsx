@@ -30,7 +30,7 @@ export function RequestCards({ requests }: { requests: ConnectionRequest[] }) {
             </strong>
             <span className="text-sm text-ink-2">
               {r.kind === 'household'
-                ? 'Household members can see each other’s accounts and plan together.'
+                ? 'Joining shares no finances automatically. Choose what to share using your household toggles.'
                 : 'Friends can invite each other to huddles. They never see your balances, bills or score.'}
             </span>
           </div>

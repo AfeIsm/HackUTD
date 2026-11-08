@@ -6,17 +6,17 @@
 
 import { randomBytes } from 'node:crypto';
 import { ObjectId } from 'mongodb';
-import { getDb } from '@/lib/db/mongo';
-import { DEMO_ASOF, PEOPLE } from '@/lib/people';
-import { buildPicture } from '@/lib/services/picture';
-import { connectionsFor } from '@/lib/services/social';
-import { capacity, checkPledge, fairSplit } from '@/lib/engine/split';
-import { validCents } from '@/lib/engine/money';
-import { validDate } from '@/lib/engine/validation';
+import { getDb } from '../db/mongo';
+import { DEMO_ASOF, PEOPLE } from '../people';
+import { buildPicture } from './picture';
+import { connectionsFor } from './social';
+import { capacity, checkPledge, fairSplit } from '../engine/split';
+import { validCents } from '../engine/money';
+import { validDate } from '../engine/validation';
 import {
   type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
-  newParticipant, payers, viewFor,
-} from '@/lib/huddles';
+  newParticipant, payers, viewFor, applyLeave,
+} from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
 import type { DeclineReason } from '@/lib/types';
 
@@ -32,7 +32,8 @@ const fromDoc = (d: HuddleDoc): Huddle => ({
   id: d._id, name: d.name, totalCost: d.totalCost, targetDate: d.targetDate, createdBy: d.createdBy, phase: d.phase,
   round: d.round, message: d.message, lastDecline: d.lastDecline, fairSplit: d.fairSplit ?? null, participants: d.participants,
 });
-const hasMoney = (memberId: string) => PEOPLE.some((p) => p.id === memberId && p.hasAccounts);
+const hasMoney = async (memberId: string) => PEOPLE.some((p) => p.id === memberId && p.hasAccounts) ||
+  Boolean(await (await getDb()).collection('members').findOne({ memberId, status: 'ready' }));
 
 export type ActionResult = { ok: true } | { ok: false; status: number; error: string };
 const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
@@ -70,9 +71,10 @@ export async function createHuddle(viewer: Viewer, input: CreateInput): Promise<
     const who = allowed.get(memberId);
     if (!who) return { status: 403, error: 'You can only add your household and friends who accepted your request.' };
     // No money data → can come along, can't pay.
-    participants.push(newParticipant(memberId, who.userId, who.name, { joined: who.joined, isPaying: isPaying && hasMoney(memberId) }));
+    participants.push(newParticipant(memberId, who.userId, who.name, { joined: who.joined, isPaying: isPaying && await hasMoney(memberId) }));
   }
   if (!participants.some((p) => p.isPaying)) return { status: 400, error: 'At least one person has to pay.' };
+  if (participants.length < 2) return { status: 400, error: 'Add at least one other person to create a huddle.' };
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'huddle';
   const id = `${slug}-${randomBytes(3).toString('hex')}`;
@@ -91,13 +93,15 @@ export type HuddleAction =
   | { action: 'agree' }
   | { action: 'requestChanges'; reason: DeclineReason }
   | { action: 'edit'; totalCost?: number; targetDate?: string }
-  | { action: 'cancel' };
+  | { action: 'cancel' }
+  | { action: 'leave' }
+  | { action: 'delete' };
 
 /** Each payer's capacity from THEIR picture; only the resulting amounts are stored. */
 async function computeFairSplit(h: Huddle): Promise<Record<string, number>> {
   const caps: Record<string, number> = {};
   for (const p of payers(h)) {
-    if (!hasMoney(p.memberId)) continue;
+    if (!await hasMoney(p.memberId)) continue;
     const { picture } = await buildPicture(p.memberId);
     if (picture) caps[p.memberId] = capacity(picture, h.targetDate, DEMO_ASOF);
   }
@@ -105,16 +109,20 @@ async function computeFairSplit(h: Huddle): Promise<Record<string, number>> {
 }
 
 /** Work out the next huddle for one action, or why it isn't allowed. */
-async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle | ActionResult> {
+async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle | ActionResult | null> {
   const me = h.participants.find((p) => p.memberId === viewer.memberId);
   if (!me) return fail(404, 'Huddle not found.');
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const isCreator = h.createdBy === viewer.memberId;
 
   switch (a.action) {
+    case 'leave':
+      return applyLeave(h, me.memberId);
+    case 'delete':
+      return isCreator ? null : fail(403, 'Only the owner can delete this huddle.');
     case 'answerInvite':
       if (me.joined) return fail(409, 'You’re already in this huddle.');
-      return applyInviteAnswer(h, me.memberId, a.accept);
+      return a.accept ? applyInviteAnswer(h, me.memberId, true) : applyLeave(h, me.memberId);
     case 'pledge': {
       if (!me.joined || !me.isPaying || !open) return fail(409, 'You can’t pledge right now.');
       if (!validCents(a.amount) || a.amount <= 0) return fail(400, 'Enter an amount.');
@@ -128,6 +136,7 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
       return applyAgree(h, me.memberId);
     case 'requestChanges':
       if (h.phase !== 'agreeing' || !me.isPaying) return fail(409, 'You can only request changes while everyone is agreeing.');
+      if (a.reason === 'out') return applyLeave(h, me.memberId);
       return applyDecline(h, me.memberId, a.reason, a.reason === 'unfairSplit' ? await computeFairSplit(h) : null);
     case 'edit':
       if (!isCreator || !open) return fail(403, 'Only the creator can change the total or date.');
@@ -146,6 +155,11 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
     const doc = await col.findOne({ _id: id, 'participants.memberId': viewer.memberId });
     if (!doc) return fail(404, 'Huddle not found.');
     const result = await next(fromDoc(doc), viewer, action);
+    if (result === null) {
+      const removed = await col.deleteOne({ _id: id, version: doc.version });
+      if (removed.deletedCount === 1) return { ok: true };
+      continue; // A concurrent change requires rechecking permissions and membership.
+    }
     if ('ok' in result) return result;
     const fields: Partial<Huddle> = { ...result };
     delete fields.id;

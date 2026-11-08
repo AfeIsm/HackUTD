@@ -1,4 +1,8 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { currentUser } from '@/lib/auth/session';
+import { mongoConfigured } from '@/lib/db/mongo';
 import { btn } from '@/components/ui';
 
 const PREVIEW_BARS = [
@@ -7,9 +11,16 @@ const PREVIEW_BARS = [
   { label: 'Savings protected', width: '100%', color: 'bg-good-ring' },
 ];
 
+async function SignedInRedirect() {
+  const user = mongoConfigured() ? await currentUser().catch(() => null) : null;
+  if (user) redirect('/dashboard');
+  return null;
+}
+
 export default function LandingPage() {
   return (
     <div className="mx-auto box-border flex min-h-screen max-w-[1160px] flex-col px-6">
+      <Suspense fallback={null}><SignedInRedirect /></Suspense>
       <header className="flex items-center justify-between gap-4 py-5">
         <Link href="/" className="font-display text-2xl font-bold text-ink no-underline">
           Wallet Whisperer

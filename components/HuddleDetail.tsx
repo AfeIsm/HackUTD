@@ -5,6 +5,7 @@
 // feedback of others never reach this browser. Actions are POSTed and run on the server.
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { DeclineReason, FinancialPicture } from '@/lib/types';
 import type { HuddleClientView, Participant } from '@/lib/huddles';
@@ -31,6 +32,7 @@ type Run = (body: Record<string, unknown>) => Promise<void>;
 
 export function HuddleDetail({ id }: { id: string }) {
   const { viewerId } = useViewer();
+  const router = useRouter();
   const state = useHuddles();
   const loaded = usePicture(viewerId); // my own picture only (for the pledge form)
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,11 @@ export function HuddleDetail({ id }: { id: string }) {
 
   const run: Run = async (body) => {
     setBusy(true);
-    setError((await huddleAction(h.id, body)).error);
+    const result = await huddleAction(h.id, body);
+    setError(result.error);
+    if (!result.error && (body.action === 'leave' || body.action === 'delete' ||
+      (body.action === 'requestChanges' && body.reason === 'out') ||
+      (body.action === 'answerInvite' && body.accept === false))) router.replace('/huddles');
     setBusy(false);
   };
   const picture = loaded.status === 'ready' ? loaded.picture : null;
@@ -62,6 +68,10 @@ export function HuddleDetail({ id }: { id: string }) {
       <div className="flex flex-col gap-2.5">
         <Link href="/huddles" className="py-1.5 text-sm font-semibold no-underline">← All huddles</Link>
         <h1 className="m-0 text-[34px]">{h.name}</h1>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btn2} disabled={busy} onClick={() => void run({ action: 'leave' })}>Leave huddle</button>
+          {h.createdBy === viewerId && <button type="button" className={`${btn2} text-bad`} disabled={busy} onClick={() => void run({ action: 'delete' })}>Delete huddle for everyone</button>}
+        </div>
         <p className="m-0 text-ink-2">
           {money0(h.totalCost)} · pay by {shortDate(h.targetDate)} · {h.participants.length} people, {h.payingCount} paying ·
           round {h.round} of 3

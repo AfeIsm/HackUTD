@@ -9,6 +9,7 @@ import { checkSource } from '../engine/source';
 import { loadMember, local } from '../nessie/client';
 import { toPicture } from '../nessie/picture';
 import { DEMO_ASOF, getPerson, PEOPLE } from '../people';
+import { readCustomer, type MemberDoc, type PictureDoc } from '../nessie/provision';
 
 export interface AppPurchase {
   memberId: string;
@@ -62,12 +63,39 @@ export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[]
 
 export interface LoadedPicture {
   picture: FinancialPicture | null;
-  source: 'nessie' | 'local' | 'none';
+  source: 'nessie' | 'local' | 'none' | 'stale';
   saved: boolean; // true = app changes come from MongoDB
 }
 
 export async function buildPicture(memberId: string): Promise<LoadedPicture> {
   const person = PEOPLE.find((p) => p.id === memberId);
+  const storedMember = mongoConfigured() ? await (await getDb()).collection<MemberDoc>('members').findOne({ memberId }) : null;
+  if (storedMember) {
+    const db = await getDb();
+    const member = storedMember;
+    if (member.status !== 'ready' || !member.customerId) return { picture: null, source: 'none', saved: false };
+    let snapshot: PictureDoc | null = await db.collection<PictureDoc>('financialPictures').findOne({ memberId });
+    let source: LoadedPicture['source'] = 'nessie';
+    if (!snapshot || Date.now() - snapshot.syncedAt.getTime() > 30_000) {
+      try {
+        const raw = await readCustomer(member.customerId, member.person.name, member.activeAccountIds);
+        const fresh: PictureDoc = { memberId, member: raw, picture: toPicture(raw, member.person, local.merchants, DEMO_ASOF), source: 'nessie', syncedAt: new Date() };
+        await db.collection<PictureDoc>('financialPictures').updateOne({ memberId }, { $set: fresh }, { upsert: true });
+        snapshot = fresh;
+      } catch {
+        source = 'stale';
+      }
+    }
+    if (!snapshot) return { picture: null, source: 'none', saved: false };
+    const [purchases, tags] = await Promise.all([
+      db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
+      db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
+    ]);
+    const base = source === 'stale' ? { ...snapshot.picture,
+      missingInputs: [...snapshot.picture.missingInputs, `Bank sync failed. Last successful sync: ${snapshot.syncedAt.toISOString()}. Refresh before approving spending.`],
+    } : snapshot.picture;
+    return { picture: applyAppChanges(base, purchases, tags), source, saved: true };
+  }
   if (!person || !person.hasAccounts) return { picture: null, source: 'none', saved: false };
   const loaded = await loadMember(memberId);
   if (!loaded) return { picture: null, source: 'none', saved: false };

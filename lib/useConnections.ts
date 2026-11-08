@@ -14,6 +14,8 @@ const POLL_MS = 5000;
 let state: ConnectionsState = LOADING;
 let timer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<() => void>();
+let revision = 0;
+let refreshId = 0;
 
 function publish(next: ConnectionsState) {
   state = next;
@@ -22,14 +24,18 @@ function publish(next: ConnectionsState) {
 
 /** Store a fresh copy (the POST/PATCH routes return one) or refetch. */
 export function setConnections(data: Connections) {
+  revision++;
   publish({ status: 'ready', data });
 }
 
 export function refreshConnections(): Promise<void> {
+  const atRevision = revision;
+  const requestId = ++refreshId;
   return fetch('/api/friends')
     .then(async (res) => {
       if (!res.ok) throw new Error(String(res.status));
-      publish({ status: 'ready', data: (await res.json()) as Connections });
+      const data = (await res.json()) as Connections;
+      if (revision === atRevision && requestId === refreshId) publish({ status: 'ready', data });
     })
     .catch(() => {
       if (state.status !== 'ready') publish({ status: 'error' }); // keep showing old data on a blip
@@ -60,7 +66,7 @@ export function useConnections(): ConnectionsState {
 }
 
 /** POST/PATCH helper: sends, stores the fresh connections, returns an error message or null. */
-export async function sendConnectionChange(url: string, method: 'POST' | 'PATCH', body: Record<string, unknown>): Promise<string | null> {
+export async function sendConnectionChange(url: string, method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>): Promise<string | null> {
   try {
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = (await res.json().catch(() => ({}))) as Connections & { error?: string };

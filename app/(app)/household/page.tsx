@@ -1,156 +1,116 @@
 'use client';
 
 import Link from 'next/link';
-import type { FinancialPicture } from '@/lib/types';
-import { scoreHealth, monthly } from '@/lib/engine/health';
-import { dayDate, money, money0 } from '@/lib/format';
-import type { HouseholdMember } from '@/lib/types';
-import { DEMO_ASOF, PEOPLE, lookOf } from '@/lib/people';
+import { useState } from 'react';
+import { useConnections, sendConnectionChange } from '@/lib/useConnections';
+import { useHousehold } from '@/lib/useHousehold';
 import { useHuddles } from '@/lib/useHuddles';
-import { usePictures } from '@/lib/usePicture';
-import { useConnections } from '@/lib/useConnections';
 import { useViewer } from '@/lib/viewer';
-import { FamilyCarousel, type FamilySlide } from '@/components/FamilyCarousel';
 import { AddByUsername } from '@/components/AddByUsername';
 import { PersonRow } from '@/components/PersonRow';
 import { RequestCards } from '@/components/RequestCards';
-import { Card, Eyebrow, Pill } from '@/components/ui';
-
-const ROLE_LABEL = { owner: 'Household owner', spouse: 'Spouse', dependent: 'Dependent' } as const;
-const hasAccounts = (m: HouseholdMember) => Boolean(m.memberId && PEOPLE.some((p) => p.id === m.memberId && p.hasAccounts));
-const roleLabel = (m: HouseholdMember) => PEOPLE.find((p) => p.id === m.memberId && m.role !== 'owner')?.roleLabel ?? ROLE_LABEL[m.role];
-
-const PER_MONTH: Record<number, number> = { 7: 52 / 12, 14: 26 / 12, 15: 2, 30: 1 };
-const monthlyPay = (p: FinancialPicture) => (p.paycheck ? Math.round(p.paycheck.avgAmount * (PER_MONTH[p.paycheck.cadenceDays] ?? 1)) : 0);
-const balanceOf = (p: FinancialPicture, type: 'Checking' | 'Savings') =>
-  p.accounts.filter((a) => a.type === type).reduce((s, a) => s + a.balance, 0);
+import { HouseholdSharing } from '@/components/HouseholdSharing';
+import { HouseholdMemberCard } from '@/components/HouseholdMemberCard';
+import { FamilyCarousel, type FamilySlide } from '@/components/FamilyCarousel';
+import { lookOf } from '@/lib/people';
+import { money, dayDate } from '@/lib/format';
+import { Card, Eyebrow, Pill, btn2 } from '@/components/ui';
 
 export default function HouseholdPage() {
-  const { viewerId } = useViewer();
+  const { me } = useViewer();
   const conn = useConnections();
   const data = conn.status === 'ready' ? conn.data : null;
   const household = data?.household ?? null;
-  const members = household?.members ?? [];
-  const memberIds = members.flatMap((m) => (m.memberId ? [m.memberId] : []));
-  const pictures = usePictures(members.filter(hasAccounts).map((m) => m.memberId as string));
+  const membershipKey = household ? household.members.map((m) => m.userId).sort().join(':') : '';
+  const shared = useHousehold(membershipKey);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  async function leave() {
+    if (leaving) return;
+    setLeaving(true);
+    setLeaveError(null);
+    const error = await sendConnectionChange('/api/household', 'DELETE', {});
+    setLeaveError(error);
+    if (!error) shared.clear();
+    setLeaving(false);
+  }
   const huddlesState = useHuddles();
-  const pendingInvites = (data?.sent ?? []).filter((r) => r.kind === 'household' && r.status === 'pending');
-  const incomingHousehold = (data?.incoming ?? []).filter((r) => r.kind === 'household');
-
-  if (conn.status !== 'ready') {
-    return <p className="m-0 text-muted">{conn.status === 'error' ? 'Couldn’t load your household. Refresh to try again.' : 'Loading…'}</p>;
-  }
-
-  if (!household) {
-    return (
-      <>
-        <div className="flex flex-col gap-1.5">
-          <Eyebrow>Your household</Eyebrow>
-          <h1 className="m-0 text-[32px]">Household</h1>
-          <p className="m-0 text-ink-2">You’re not in a household yet. Start one by inviting your spouse or kids by username.</p>
-        </div>
-        <RequestCards requests={incomingHousehold} />
-        <div className="flex flex-wrap items-start gap-5">
-          <AddByUsername kind="household" title="Invite to your household" help="They accept on their own device. You become the household owner." />
-          {pendingInvites.length > 0 && (
-            <Card label="Invites sent" className="flex min-w-0 flex-[999_1_420px] flex-col gap-1">
-              <h2 className="m-0 mb-2 text-[22px]">Invites sent</h2>
-              {pendingInvites.map((r) => (
-                <PersonRow key={r.id} person={r.to} right={<Pill className="bg-warn-bg text-warn">Waiting</Pill>} />
-              ))}
-            </Card>
-          )}
-        </div>
-      </>
-    );
-  }
-
-  const slides: FamilySlide[] = members.map((m) => {
-    const id = m.memberId ?? m.userId ?? m.name;
-    const person = { ...lookOf(m.name, m.memberId), name: m.name, roleLabel: roleLabel(m), hasAccounts: hasAccounts(m) };
-    const state = m.memberId ? pictures[m.memberId] : undefined;
-    const picture = state?.status === 'ready' ? state.picture : null;
-    const loading = person.hasAccounts && (!state || state.status === 'loading');
-    const result = picture ? scoreHealth(picture, { asOf: DEMO_ASOF }) : null;
-    const weakest = result ? [...result.indicators].sort((a, b) => (a.points ?? -1) - (b.points ?? -1) || b.weight - a.weight)[0] : null;
+  const pending = (data?.sent ?? []).filter((r) => r.kind === 'household' && r.status === 'pending');
+  const incoming = (data?.incoming ?? []).filter((r) => r.kind === 'household');
+  const myUserId = me.status === 'in' ? me.user.id : '';
+  const currentShared = shared.data?.household?.owner.userId === household?.owner.userId ? shared.data : null;
+  const members = currentShared?.members.filter((m) => household?.members.some((p) => p.userId === m.userId)) ?? [];
+  const slides: FamilySlide[] = members.map((member) => {
+    const own = member.userId === myUserId;
+    const { data } = member;
+    const facts: FamilySlide['facts'] = [];
+    if (data.balances) {
+      for (const type of ['Checking', 'Savings'] as const) {
+        const accounts = data.balances.filter((a) => a.type === type);
+        if (accounts.length) facts.push({ k: type, v: money(accounts.reduce((sum, a) => sum + a.balance, 0)) });
+      }
+    }
+    if (data.income) facts.push({ k: 'Next payday', v: `${dayDate(data.income.nextDate)} · ${money(data.income.avgAmount)}` });
+    const nextBill = data.obligations?.toSorted((a, b) => a.nextDate.localeCompare(b.nextDate))[0];
+    if (nextBill) facts.push({ k: 'Next bill', v: `${nextBill.name} · ${money(nextBill.amount)}` });
+    if (data.goals) facts.push({ k: 'Savings goals', v: `${data.goals.length} goals shared` });
+    if (data.transactions) facts.push({ k: 'Recent activity', v: `${data.transactions.length} transactions shared` });
     return {
-      id, name: m.memberId === viewerId ? `${person.name} (you)` : person.name, roleLabel: person.roleLabel, initial: person.initial, color: person.color,
-      result, loading,
-      summary: !person.hasAccounts
-        ? `${person.name} has no accounts. They come along on huddles as “not paying”, so the split only counts people who pay.`
-        : weakest && weakest.status !== 'green'
-          ? `${weakest.label}: ${weakest.explanation}`
-          : result
-            ? 'Every indicator is healthy.'
-            : '',
-      facts: picture
-        ? [
-            { k: 'Paycheck', v: picture.paycheck ? `${money0(picture.paycheck.avgAmount)} · next ${dayDate(picture.paycheck.nextDate)}` : 'None detected' },
-            { k: 'Checking', v: money(balanceOf(picture, 'Checking')) },
-            { k: 'Savings', v: money(balanceOf(picture, 'Savings')) },
-          ]
-        : [{ k: 'Accounts', v: person.hasAccounts ? '…' : 'None' }],
+      id: member.userId ?? member.memberId ?? member.name,
+      name: `${member.name}${own ? ' (you)' : ''}`,
+      roleLabel: member.role === 'owner' ? 'Household owner' : member.role === 'spouse' ? 'Spouse / partner' : 'Dependent',
+      ...lookOf(member.name, member.memberId),
+      result: data.health ?? null, loading: false,
+      summary: member.unavailable ? 'Shared data is temporarily unavailable.'
+        : !Object.keys(data).length ? 'Financial details are private.'
+        : own ? 'Your main financial highlights. Expand to see your full overview.' : 'Highlights from what this member has chosen to share.',
+      facts: facts.slice(0, 3),
+      details: <HouseholdMemberCard member={member} own={own} />,
     };
   });
-
-  const ready = memberIds.map((id) => pictures[id]).flatMap((s) => (s?.status === 'ready' && s.picture ? [s.picture] : []));
-  const income = ready.reduce((s, p) => s + monthlyPay(p), 0);
-  const essential = ready.reduce((s, p) => s + p.obligations.filter((o) => o.essential).reduce((x, o) => x + monthly(o), 0), 0);
-  const savings = ready.reduce((s, p) => s + balanceOf(p, 'Savings'), 0);
+  const memberIds = household?.members.flatMap((m) => m.memberId ? [m.memberId] : []) ?? [];
   const openHuddles = (huddlesState.status === 'ready' ? huddlesState.huddles : []).filter(
     (h) => h.phase !== 'locked' && h.phase !== 'cancelled' && h.participants.some((p) => memberIds.includes(p.memberId)),
   );
 
-  return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        <Eyebrow>{household.iAmOwner ? 'Your household' : `${household.owner.name}’s household`}</Eyebrow>
-        <h1 className="m-0 text-[32px]">Household</h1>
-        <p className="m-0 text-ink-2">Household members can see each other’s full picture. Friends never can.</p>
-      </div>
+  if (conn.status !== 'ready') return <p className="m-0 text-muted">{conn.status === 'error' ? 'Could not load your household. Refresh to try again.' : 'Loading household…'}</p>;
 
-      <FamilyCarousel slides={slides} />
-
-      {household.iAmOwner && (
-        <div className="flex flex-wrap items-start gap-5">
-          <AddByUsername kind="household" title="Invite someone to your household" help="They accept on their own device." />
-          {pendingInvites.length > 0 && (
-            <Card label="Invites sent" className="flex min-w-0 flex-[999_1_420px] flex-col gap-1">
-              <h2 className="m-0 mb-2 text-[22px]">Invites sent</h2>
-              {pendingInvites.map((r) => (
-                <PersonRow key={r.id} person={r.to} right={<Pill className="bg-warn-bg text-warn">Waiting</Pill>} />
-              ))}
-            </Card>
-          )}
-        </div>
-      )}
-
-      <Card label="Household totals" className="flex flex-wrap gap-6">
-        <Total label="Household income" value={`${money0(income)}/mo`} />
-        <Total label="Essential bills" value={`${money0(essential)}/mo`} />
-        <Total label="Savings, all members" value={money0(savings)} />
-        <div className="flex flex-[1_1_200px] flex-col gap-1">
-          <Eyebrow>Open huddles</Eyebrow>
-          {openHuddles.length === 0 ? (
-            <span className="font-display text-[26px] font-semibold">0</span>
-          ) : (
-            openHuddles.map((h) => (
-              <Link key={h.id} href={`/huddles/${h.id}`} className="font-display text-[22px] font-semibold no-underline">
-                {h.name}
-              </Link>
-            ))
-          )}
-        </div>
-      </Card>
-    </>
-  );
-}
-
-function Total({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-[1_1_200px] flex-col gap-1">
-      <Eyebrow>{label}</Eyebrow>
-      <span className="font-display text-[26px] font-semibold">{value}</span>
+  return <>
+    <div className="flex flex-col gap-1.5">
+      <Eyebrow>{household && !household.iAmOwner ? `${household.owner.name}'s household` : 'Your household'}</Eyebrow>
+      <h1 className="m-0 text-[32px]">Household</h1>
+      {household && <div className="flex flex-col items-start gap-2">
+        <button type="button" className={`${btn2} text-bad`} disabled={leaving || shared.saving !== null} onClick={() => void leave()}>
+          {leaving ? 'Leaving…' : 'Leave household'}
+        </button>
+        {household.iAmOwner && <p className="m-0 text-xs text-muted">Ownership passes to the next member. Sharing resets to private; if only one member remains, the household closes.</p>}
+      </div>}
+      {leaveError && <p role="alert" className="m-0 text-sm text-bad">{leaveError}</p>}
+      <p className="m-0 text-ink-2">{household
+        ? 'Each person controls what they share. Joining a household never shares finances automatically.'
+        : 'Invite someone by username. They join only after accepting on their own account.'}</p>
     </div>
-  );
+
+    <RequestCards requests={incoming} />
+
+    {household && <>
+      <FamilyCarousel slides={slides} />
+      {shared.error && <Card><p role="alert" className="m-0 mb-3 text-bad">{shared.error}</p><button type="button" className={btn2} onClick={() => void shared.refresh()}>Refresh sharing</button></Card>}
+      {currentShared
+        ? <HouseholdSharing settings={currentShared.settings} saving={shared.saving} onToggle={(scope, enabled) => void shared.toggle(scope, enabled)} />
+        : !shared.error && <p className="m-0 text-muted">Loading sharing preferences…</p>}
+      {openHuddles.length > 0 && <Card label="Household huddles">
+        <h2 className="m-0 mb-3 text-[22px]">Open huddles</h2>
+        <div className="flex flex-wrap gap-4">{openHuddles.map((h) => <Link key={h.id} href={`/huddles/${h.id}`} className="font-semibold">{h.name}</Link>)}</div>
+      </Card>}
+    </>}
+
+    {(!household || household.iAmOwner) && <div className="flex flex-wrap items-start gap-5">
+      <AddByUsername kind="household" title="Invite to your household" help="They must accept on their own device. Both people choose their own sharing settings after joining." />
+      {pending.length > 0 && <Card label="Invites sent" className="flex min-w-0 flex-[999_1_420px] flex-col gap-1">
+        <h2 className="m-0 mb-2 text-[22px]">Invites sent</h2>
+        {pending.map((r) => <PersonRow key={r.id} person={r.to} right={<Pill className="bg-warn-bg text-warn">Awaiting acceptance</Pill>} />)}
+      </Card>}
+    </div>}
+  </>;
 }

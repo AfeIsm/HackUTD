@@ -13,6 +13,8 @@ const POLL_MS = 5000;
 let state: HuddlesState = LOADING;
 let timer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<() => void>();
+let revision = 0;
+let refreshId = 0;
 
 function publish(next: HuddlesState) {
   state = next;
@@ -20,10 +22,13 @@ function publish(next: HuddlesState) {
 }
 
 export function refreshHuddles(): Promise<void> {
+  const atRevision = revision;
+  const requestId = ++refreshId;
   return fetch('/api/huddles')
     .then(async (res) => {
       if (!res.ok) throw new Error(String(res.status));
-      publish({ status: 'ready', huddles: ((await res.json()) as { huddles: HuddleClientView[] }).huddles });
+      const data = (await res.json()) as { huddles: HuddleClientView[] };
+      if (atRevision === revision && requestId === refreshId) publish({ status: 'ready', huddles: data.huddles });
     })
     .catch(() => {
       if (state.status !== 'ready') publish({ status: 'error' });
@@ -59,7 +64,10 @@ export async function huddleRequest(url: string, body: Record<string, unknown>):
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = (await res.json().catch(() => ({}))) as { huddles?: HuddleClientView[]; error?: string; id?: string };
     if (!res.ok) return { error: data.error ?? `Something went wrong (${res.status}).` };
-    if (data.huddles) publish({ status: 'ready', huddles: data.huddles });
+    if (data.huddles) {
+      revision++; // Older polling responses must not resurrect a deleted/left huddle.
+      publish({ status: 'ready', huddles: data.huddles });
+    }
     return { error: null, id: data.id };
   } catch {
     return { error: 'Couldn’t reach the server. Try again.' };
