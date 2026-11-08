@@ -29,7 +29,7 @@ export function RandomizeFinances({ disabled, onComplete }: { disabled: boolean;
     <button type="button" className={btn2} disabled={disabled || busy} onClick={() => void randomize()}>
       {busy ? 'Generating Nessie demo finances…' : requestId ? 'Retry demo randomization' : 'Randomize demo finances'}
     </button>
-    <span className="text-xs text-muted">Generates new synthetic accounts, income, bills and spending. Previous account purchases and goals stay with the old demo accounts.</span>
+    <span className="text-xs text-muted in-[.page-header-inner]:text-white">Generates new synthetic accounts, income, bills and spending. Previous account purchases and goals stay with the old demo accounts.</span>
     {error && <p role="alert" className="m-0 text-sm text-bad">{error}</p>}
   </div>;
 }
