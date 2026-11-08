@@ -45,6 +45,12 @@ function ensureIndexes(db: Db): Promise<void> {
     db.collection('huddles').createIndex({ 'participants.memberId': 1 }),
     db.collection('invites').createIndex({ toId: 1, status: 1 }),
     db.collection('friendships').createIndex({ pair: 1 }, { unique: true }),
+    // Accounts (F6): the database itself guarantees no two people share a username/email.
+    db.collection('users').createIndex({ usernameLower: 1 }, { unique: true }),
+    db.collection('users').createIndex({ email: 1 }, { unique: true }),
+    // Sessions: lookup by token hash; TTL index → Atlas deletes expired sessions on its own.
+    db.collection('sessions').createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ])
     .then(() => undefined)
     .catch((err) => {
