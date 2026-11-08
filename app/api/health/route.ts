@@ -6,6 +6,9 @@ import { NextResponse } from 'next/server';
 import { latestHealth, runHealthCheck } from '@/lib/services/health';
 import { requireViewer } from '@/lib/auth/viewer';
 
+// Long enough for the background huddle coach (after()) to finish.
+export const maxDuration = 60;
+
 export async function GET() {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;

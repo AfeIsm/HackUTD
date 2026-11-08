@@ -456,6 +456,20 @@ function RiskBanner({ h }: { h: HuddleClientView }) {
           {mine.riskReason && <> {mine.riskReason}</>} Undo the recent spending or talk to the group before {shortDate(h.targetDate)}.
         </p>
       )}
+      {mine && (mine.coach ? (
+        <div className="mt-1 flex flex-col gap-1.5 rounded-lg border border-line bg-surface px-3 py-2.5 text-ink">
+          <span className="text-[13px] font-semibold text-muted">🔒 Nemotron prepared this privately for you (no one else in the huddle sees it)</span>
+          <strong className="text-[15px]">{mine.coach.headline}</strong>
+          {mine.coach.actions.length > 0 && (
+            <ul className="m-0 flex flex-col gap-0.5 pl-5 text-[14px]">{mine.coach.actions.map((a) => <li key={a}>{a}</li>)}</ul>
+          )}
+          {mine.coach.firstStep && <span className="text-[14px]"><b>First step:</b> {mine.coach.firstStep}</span>}
+          {mine.coach.explanation && <span className="text-[14px] text-ink-2">{mine.coach.explanation}</span>}
+          <span className="text-xs text-muted">Score {mine.coach.scoreBefore} → {mine.coach.scoreAfter}, re-checked by our engine.</span>
+        </div>
+      ) : (
+        <span className="text-[13px]">Nemotron is preparing a private plan for you…</span>
+      ))}
       {others > 0 && (
         <p className="m-0">
           {mine ? 'Also, ' : ''}{others === 1 ? 'one member’s commitment' : `${others} members’ commitments`} in this huddle {others === 1 ? 'is' : 'are'} no

@@ -95,7 +95,9 @@ function bestTried(tried: { input: ScenarioInput; score: number; green: boolean 
     || (a.input.cancel?.length ?? 0) - (b.input.cancel?.length ?? 0))[0];
 }
 
-export async function runAgent(picture: FinancialPicture, question: string, asOf: string, onStep: (s: AgentStep) => void): Promise<AgentAnswer> {
+/** `fixedPurchase`: when the purchase is already known (a huddle pledge), it is always judged
+ *  exactly as given, whatever amount/date/account the model tries. */
+export async function runAgent(picture: FinancialPicture, question: string, asOf: string, onStep: (s: AgentStep) => void, fixedPurchase?: ScenarioInput['purchase']): Promise<AgentAnswer> {
   const started = Date.now();
   const steps: AgentStep[] = [];
   const push = (s: AgentStep) => { steps.push(s); onStep(s); };
@@ -104,7 +106,7 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
 
   push({ type: 'plan', text: 'Nemotron is reading your question and planning which checks to run.' });
   let nudged = false;
-  let lastPurchase: ScenarioInput['purchase'] | undefined; // the purchase being asked about, if any
+  let lastPurchase: ScenarioInput['purchase'] | undefined = fixedPurchase; // the purchase being asked about, if any
   const tried: { input: ScenarioInput; score: number; green: boolean }[] = [];
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (Date.now() - started > TIME_LIMIT_MS) break;
@@ -132,7 +134,8 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
       const args = parseArgs(call.function.arguments);
       if (name === 'propose_plan') {
         // A purchase question is always judged WITH the purchase, even if the model left it out.
-        if (!args.purchase && lastPurchase) args.purchase = lastPurchase;
+        if (fixedPurchase) args.purchase = fixedPurchase;
+        else if (!args.purchase && lastPurchase) args.purchase = lastPurchase;
         const plan = makePlan(picture, args as ScenarioInput, asOf, args); // engine re-scores the final plan
         if ('error' in plan) {
           push({ type: 'result', tool: name, text: `The proposed plan didn't check out (${plan.error}); asking Nemotron to fix it.` });
@@ -142,8 +145,8 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
         push({ type: 'final', tool: name, text: `Proposed a plan. The engine re-checked it: ${plan.headline}` });
         return done(plan, null);
       }
-      if (name === 'can_afford' && args.amount && args.accountId) lastPurchase = { amount: Number(args.amount), date: args.date as string | undefined, accountId: String(args.accountId), label: args.label as string | undefined };
-      if (name === 'simulate' && args.purchase) lastPurchase = args.purchase as ScenarioInput['purchase'];
+      if (fixedPurchase) { /* keep the known purchase */ } else if (name === 'can_afford' && args.amount && args.accountId) lastPurchase = { amount: Number(args.amount), date: args.date as string | undefined, accountId: String(args.accountId), label: args.label as string | undefined };
+      if (!fixedPurchase && name === 'simulate' && args.purchase) lastPurchase = args.purchase as ScenarioInput['purchase'];
       const result =
         name === 'get_overview' ? overview(picture, asOf)
         : name === 'get_spending' ? spending(picture, asOf, Number(args.days) || 30)
@@ -163,7 +166,8 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
   const best = bestTried(tried);
   const input: ScenarioInput | null = best ? { ...best.input } : lastPurchase ? {} : null;
   if (input) {
-    if (lastPurchase && !input.purchase) input.purchase = lastPurchase;
+    if (fixedPurchase) input.purchase = fixedPurchase;
+    else if (lastPurchase && !input.purchase) input.purchase = lastPurchase;
     const plan = makePlan(picture, input, asOf, {});
     if (!('error' in plan)) {
       push({ type: 'final', text: `Out of steps, so using the best option Nemotron tested. The engine re-checked it: ${plan.headline}` });

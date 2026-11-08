@@ -8,7 +8,9 @@ import { scoreHealth } from '../engine/health';
 import { buildFixPlan } from '../engine/fixplan';
 import { DEMO_ASOF } from '../people';
 import { buildPicture } from './picture';
+import { after } from 'next/server';
 import { recheckCommitments } from './huddle';
+import { coachAtRiskPledges } from '../agent/coach';
 
 export interface SnapshotDoc {
   memberId: string;
@@ -62,8 +64,17 @@ export async function runHealthCheck(memberId: string, trigger: string): Promise
   const result = scoreHealth(loaded.picture, { asOf: DEMO_ASOF, trigger, checkedAt: now.toISOString() });
   if (mongoConfigured()) {
     // New money data → are this member's huddle commitments (even locked ones) still affordable?
-    await recheckCommitments(memberId, loaded.picture).catch((err: Error) =>
-      console.warn(`Could not re-check huddle commitments for ${memberId}:`, err.message));
+    const picture = loaded.picture;
+    const checked = await recheckCommitments(memberId, picture).catch((err: Error) => {
+      console.warn(`Could not re-check huddle commitments for ${memberId}:`, err.message);
+      return null;
+    });
+    // A commitment just became unaffordable → Nemotron writes a private plan, after the response.
+    if (checked?.newlyAtRisk.length) {
+      void getDb().then((db) => db.collection('coachLog').insertOne({ memberId, stage: 'scheduled', count: checked.newlyAtRisk.length, at: new Date() })).catch(() => {});
+      const job = () => coachAtRiskPledges(memberId, picture, checked.newlyAtRisk);
+      try { after(job); } catch { void job(); } // outside a request (scripts/tests): just run it
+    }
   }
   const plan = await savedPlan(memberId, loaded.picture);
   if (!mongoConfigured() || !loaded.saved) {

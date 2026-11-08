@@ -8,6 +8,10 @@
 
 import type { DeclineReason, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
+import type { AgentPlan } from './agent/loop';
+
+// Nemotron's private plan for keeping an at-risk commitment (written automatically).
+export type CoachNote = AgentPlan & { createdAt: string };
 
 export interface Participant {
   memberId: string;
@@ -28,6 +32,7 @@ export interface Participant {
   atRisk?: boolean;
   riskReason?: string | null; // PRIVATE: only this member sees why
   riskScore?: number | null; // PRIVATE: their score if the pledge went through now
+  coach?: CoachNote | null; // PRIVATE: only this member ever sees it
 }
 
 export interface Huddle {
@@ -99,7 +104,7 @@ export function applyPledge(h: Huddle, memberId: string, pledge: { amount: numbe
   return advance(updateParticipant(resetAgreements(h), memberId, (p) => ({
     ...p, pledge: pledge.amount, sourceAccountId: pledge.sourceAccountId, goalId: pledge.goalId ?? null,
     committed: check.passed, checkPassed: check.passed, feedback: check.reason, suggestion: null,
-    atRisk: false, riskReason: null, riskScore: null, // a fresh check replaces any old warning
+    atRisk: false, riskReason: null, riskScore: null, coach: null, // a fresh check replaces any old warning
   })));
 }
 

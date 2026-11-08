@@ -14,7 +14,7 @@ import { capacity, checkPledge, fairSplit } from '../engine/split';
 import { validCents } from '../engine/money';
 import { validDate } from '../engine/validation';
 import {
-  type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
+  type CoachNote, type Huddle, type HuddleClientView, applyAgree, applyCancel, applyDecline, applyEdit, applyInviteAnswer, applyPledge,
   newParticipant, payers, viewFor, applyLeave,
 } from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
@@ -176,11 +176,14 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
  * Locked huddles too: a commitment that would now leave them yellow or red gets flagged, and
  * the flag clears again if their money recovers. Only the flag changes; the pledge stays.
  */
-export async function recheckCommitments(memberId: string, picture: FinancialPicture): Promise<number> {
+export interface NewRisk { huddleId: string; name: string; pledge: number; sourceAccountId: string; targetDate: string }
+
+export async function recheckCommitments(memberId: string, picture: FinancialPicture): Promise<{ atRisk: number; newlyAtRisk: NewRisk[] }> {
   const col = await huddles();
   const mine = { $elemMatch: { memberId, committed: true } };
   const docs = await col.find({ participants: mine, phase: { $ne: 'cancelled' } }).toArray();
   let atRisk = 0;
+  const newlyAtRisk: NewRisk[] = [];
   for (const d of docs) {
     const p = d.participants.find((x) => x.memberId === memberId);
     if (!p?.pledge || !p.sourceAccountId) continue;
@@ -192,12 +195,24 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
     const riskReason = flag ? check.reason : null;
     const riskScore = flag ? check.scoreAfter : null;
     if (Boolean(p.atRisk) === flag && (p.riskReason ?? null) === riskReason && (p.riskScore ?? null) === riskScore) continue;
+    if (flag && !p.atRisk) newlyAtRisk.push({ huddleId: d._id, name: d.name, pledge: p.pledge, sourceAccountId: p.sourceAccountId, targetDate: d.targetDate });
     // Positional update touches only this member's row; bumping `version` makes any action
     // racing with it re-read instead of overwriting the flag.
     await col.updateOne({ _id: d._id, participants: mine }, {
-      $set: { 'participants.$.atRisk': flag, 'participants.$.riskReason': riskReason, 'participants.$.riskScore': riskScore, updatedAt: new Date() },
+      $set: {
+        'participants.$.atRisk': flag, 'participants.$.riskReason': riskReason, 'participants.$.riskScore': riskScore, updatedAt: new Date(),
+        ...(flag ? {} : { 'participants.$.coach': null }), // recovered: the old advice no longer applies
+      },
       $inc: { version: 1 },
     });
   }
-  return atRisk;
+  return { atRisk, newlyAtRisk };
+}
+
+/** Store Nemotron's private plan on this member's row, only if the pledge is still at risk. */
+export async function saveCoachNote(huddleId: string, memberId: string, note: CoachNote): Promise<void> {
+  await (await huddles()).updateOne(
+    { _id: huddleId, participants: { $elemMatch: { memberId, atRisk: true } } },
+    { $set: { 'participants.$.coach': note, updatedAt: new Date() }, $inc: { version: 1 } },
+  );
 }

@@ -79,16 +79,19 @@ describe('Huddle phase machine + privacy filter', () => {
 
   it('a locked commitment that stops passing its check warns everyone, but only its owner sees why', () => {
     const ps = ['alex', 'sam'].map((id) => newParticipant(id, id, id, { committed: true, agreed: true, pledge: 100, sourceAccountId: 'acct-' + id }));
-    ps[1] = { ...ps[1], atRisk: true, riskReason: 'leaves a red assessment', riskScore: 42 };
+    ps[1] = { ...ps[1], atRisk: true, riskReason: 'leaves a red assessment', riskScore: 42,
+      coach: { verdict: 'yesIf', headline: 'SECRET-COACH-PLAN', focus: null, firstStep: null, summary: '', explanation: '', actions: [], scoreBefore: 42, scoreAfter: 80, statusBefore: 'red', statusAfter: 'green', notGreen: [], problems: [], createdAt: '2026-11-08T00:00:00Z' } };
     const h: Huddle = { ...huddle(ps), phase: 'locked' };
     const alexView = viewFor(h, 'alex');
     expect(alexView.atRiskCount).toBe(1);
     expect(JSON.stringify(alexView)).not.toContain('red assessment');
     expect(JSON.stringify(alexView)).not.toContain('42');
+    expect(JSON.stringify(alexView)).not.toContain('SECRET-COACH-PLAN'); // Nemotron's private plan stays private
     expect(alexView.participants.some((p) => 'atRisk' in p)).toBe(false); // never says WHO
     const samView = viewFor(h, 'sam');
     expect(samView.me?.atRisk).toBe(true);
     expect(samView.me?.riskScore).toBe(42);
+    expect(samView.me?.coach?.headline).toBe('SECRET-COACH-PLAN');
     expect(viewFor({ ...h, phase: 'cancelled' }, 'alex').atRiskCount).toBe(0);
   });
 
