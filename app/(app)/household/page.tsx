@@ -75,7 +75,7 @@ export default function HouseholdPage() {
     (h) => h.phase !== 'locked' && h.phase !== 'cancelled' && h.participants.some((p) => memberIds.includes(p.memberId)),
   );
 
-  return <PageShell id="household" title="Household" showDemoNotice={false}
+  return <PageShell id="household" title="Household"
     intro={household
       ? 'Each person controls what they share. Joining a household never shares finances automatically.'
       : 'Invite someone by username. They join only after accepting on their own account.'}

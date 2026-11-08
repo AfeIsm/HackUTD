@@ -31,11 +31,15 @@ export function CardFace({ id }: { id: CardId }) {
       </div>
     );
   }
+  const brand = id === "money" ? { name: "PNC", logo: "/wallet/logos/pnc.svg" }
+    : id === "friends" ? { name: "Capital One", logo: "/wallet/logos/capital-one.svg" }
+    : { name: "NVIDIA", logo: "/wallet/logos/nvidia.svg" };
   return (
     <div className={`card-face ${card.face}`}>
       <span className="card-title font-display">{card.title}</span>
-      <span className="card-brand">
-        {id === "money" ? "PNC-inspired" : id === "friends" ? "Capital One-inspired" : "NVIDIA-inspired"}
+      <span className="card-brand card-brand-logo">
+        {brand.name}
+        <span className="brand-chip"><img src={brand.logo} alt="" width={20} height={20} /></span>
       </span>
       <span className="card-chip" aria-hidden />
       <span className="card-number" aria-hidden>•••• •••• •••• 2026</span>

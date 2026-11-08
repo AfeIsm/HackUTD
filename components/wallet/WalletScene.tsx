@@ -126,7 +126,7 @@ export function WalletScene() {
       </div>
       </div>
 
-      {!w.open && <button ref={startBtn} type="button" className="start-btn inline-flex items-center justify-center gap-3" onClick={start}>Start Saving <span aria-hidden="true">→</span></button>}
+      {!w.open && <button ref={startBtn} type="button" className="start-btn inline-flex items-center justify-center gap-3" disabled={w.loggingOut} onClick={start}>Start Saving <span aria-hidden="true">→</span></button>}
 
       {phone && w.open && !pageOpen && (
         <button type="button" className="side-toggle" onClick={() => w.setSide(w.side === "left" ? "right" : "left")}>

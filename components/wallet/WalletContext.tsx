@@ -18,6 +18,7 @@ const getMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').ma
 type WalletCtx = {
   open: boolean; instant: boolean; reduced: boolean;
   openWallet: () => void; closeWallet: () => void;
+  loggingOut: boolean; closeForLogout: () => Promise<void>;
   loginOpen: boolean; loginMode: 'login' | 'signup'; loginNext: string;
   openLogin: (then?: CardId | null) => void; closeLogin: () => void;
   side: 'left' | 'right'; setSide: (side: 'left' | 'right') => void;
@@ -38,6 +39,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [login, setLogin] = useState<{ next: string } | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [instant, setInstant] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const reduced = useSyncExternalStore(subscribeMotion, getMotion, () => false);
   const slots = useRef(new Map<CardId, HTMLElement>());
   const busy = useRef(false);
@@ -114,8 +116,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }, MOTION.shrink + MOTION.insert + 100);
   }, [activeCard, reduced, router, later, clearTimers]);
 
+  // Resolves once the wallet has shut. A page's card goes back in its slot first.
+  const closeForLogout = useCallback(() => new Promise<void>((resolve) => {
+    setLoggingOut(true);
+    const shut = () => {
+      setLogin(null); setSide('left'); setOpened(false);
+      later(resolve, MOTION.unfold + 120);
+    };
+    if (!activeCard) { shut(); return; }
+    backToWallet();
+    later(shut, MOTION.shrink + MOTION.insert + 140);
+  }), [activeCard, backToWallet, later]);
+
   const value = useMemo<WalletCtx>(() => ({
-    open, instant, reduced, side, setSide,
+    open, instant, reduced, side, setSide, loggingOut, closeForLogout,
     openWallet: () => setOpened(true),
     closeWallet: () => { clearTimers(); setFlight(null); setLogin(null); setSide('left'); setOpened(false); },
     loginOpen: login !== null || (authRoute && me.status !== 'in'),
@@ -124,7 +138,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     openLogin: (then = null) => { setOpened(true); setLogin({ next: then ? CARDS[then].to : '/' }); },
     closeLogin: () => { setLogin(null); if (authRoute) { setOpened(true); router.replace('/'); } },
     flight, activeCard, openCard, backToWallet, registerSlot,
-  }), [open, instant, reduced, side, login, authRoute, me.status, pathname, flight, activeCard, openCard, backToWallet, registerSlot, clearTimers, router]);
+  }), [open, instant, reduced, side, loggingOut, closeForLogout, login, authRoute, me.status, pathname, flight, activeCard, openCard, backToWallet, registerSlot, clearTimers, router]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
