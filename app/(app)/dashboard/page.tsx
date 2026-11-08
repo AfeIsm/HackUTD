@@ -16,6 +16,7 @@ import { ObligationsList } from '@/components/ObligationsList';
 import { ScoreGauge } from '@/components/ScoreGauge';
 import { RandomizeFinances } from '@/components/RandomizeFinances';
 import { FixPlanCard } from '@/components/FixPlanCard';
+import { AgentPanel } from '@/components/AgentPanel';
 import { Card, Eyebrow, StatusPill, TONE, btn2 } from '@/components/ui';
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -165,6 +166,7 @@ export default function DashboardPage() {
       </div>
 
       {payload.plan && <FixPlanCard plan={payload.plan} />}
+      <AgentPanel />
 
       <div className="flex flex-wrap items-start gap-5">
         <Card label="Add a purchase" className="min-w-0 flex-[999_1_520px]">

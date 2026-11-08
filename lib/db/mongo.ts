@@ -55,6 +55,9 @@ function ensureIndexes(db: Db): Promise<void> {
     db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     // Friend/household requests: inbox lookups, and a PARTIAL unique index so there can only
     // be one pending request per pair of people + kind (answered ones don't count).
+    // Agent answers: same question + same data fingerprint → one saved answer, no new AI call.
+    db.collection('agentAnswers').createIndex({ memberId: 1, dataHash: 1, questionKey: 1 }, { unique: true }),
+    db.collection('agentAnswers').createIndex({ memberId: 1, createdAt: -1 }),
     db.collection('friendRequests').createIndex({ toUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex({ fromUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex(
