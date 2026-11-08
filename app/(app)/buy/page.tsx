@@ -12,8 +12,7 @@ import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { Card, Pill, btn, input } from '@/components/ui';
 import { PageShell } from '@/components/wallet/PageShell';
-import { BuyOptions, useBuyOptions } from '@/components/BuyOptions';
-import { BuyCoach } from '@/components/BuyCoach';
+import { BuyComparison } from '@/components/BuyComparison';
 import type { BuyQuestion } from '@/lib/agent/buyOptions';
 import './buy.css';
 
@@ -52,8 +51,6 @@ export default function BuyPage() {
   const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
   const [askedQuestion, setAskedQuestion] = useState<BuyQuestion | null>(null);
   const answerHeading = useRef<HTMLHeadingElement>(null);
-  const buyOptions = useBuyOptions();
-  const showOptions = asked?.memberId === person.id && askedQuestion && buyOptions.state?.key.startsWith(`${person.id}|`) ? buyOptions.state : null;
 
   const picture = loaded.status === 'ready' ? loaded.picture : null;
   const options = picture ? fundingOptions(picture) : [];
@@ -91,7 +88,6 @@ export default function BuyPage() {
     if (funding && cost > 0 && label.length >= 2 && normalized.date) {
       const question = { label, cost, date: normalized.date, sourceAccountId: funding.sourceAccountId, goalId: funding.goalId };
       setAskedQuestion(question);
-      void buyOptions.start(`${person.id}|${JSON.stringify(question)}`, question);
     } else setAskedQuestion(null);
   };
 
@@ -127,7 +123,7 @@ export default function BuyPage() {
             </div>
             <label className="buy-field">
               What are you buying?
-              <input className={input} required value={q.label} onChange={(e) => setQ({ ...q, label: e.target.value })} placeholder="PlayStation 6" />
+              <input className={input} required minLength={2} maxLength={60} value={q.label} onChange={(e) => setQ({ ...q, label: e.target.value })} placeholder="PlayStation 6" />
             </label>
             <div className="buy-form-pair">
               <label className="buy-field">
@@ -148,7 +144,7 @@ export default function BuyPage() {
                 {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
-            <button type="submit" className={`${btn} buy-submit`} disabled={!q.label.trim() || !q.date || !selected || (parseMoney(q.cost) ?? 0) <= 0}>
+            <button type="submit" className={`${btn} buy-submit`} disabled={q.label.trim().length < 2 || !q.date || !selected || (parseMoney(q.cost) ?? 0) <= 0}>
               Check this purchase <span aria-hidden="true">→</span>
             </button>
             <p className="buy-form-note">A preview of your budget. No purchase is made.</p>
@@ -212,6 +208,7 @@ export default function BuyPage() {
                     tone={result.after.overall === 'green' ? 'good' : result.after.overall === 'red' ? 'bad' : 'warn'}
                   />
                 </div>
+                {askedQ && askedQuestion && <BuyComparison key={`${person.id}|${JSON.stringify(askedQuestion)}|${result?.before.dataHash}`} picture={picture} purchase={askedQuestion} />}
                 {result.verifiedAlternative && <p className="rounded-lg bg-good-bg p-3">Verified alternative score: {result.verifiedAlternative.result.score} on {shortDate(result.verifiedAlternative.date)}.</p>}
                 {result.missingInputs.length > 0 && <div className="buy-missing"><h3>Complete your check</h3><ul>{result.missingInputs.map((m) => <li key={m}>{m}</li>)}</ul></div>}
                 {result.flags.length > 0 && (
@@ -231,8 +228,6 @@ export default function BuyPage() {
               </div>
             )}
           </Card>
-          {askedQ && askedQuestion && <BuyCoach key={`${person.id}|${JSON.stringify(askedQuestion)}|${result?.before.dataHash}`} purchase={askedQuestion} accountName={askedAccount?.nickname ?? 'Selected account'} />}
-          {showOptions && askedQuestion && <BuyOptions state={showOptions} picture={picture} question={askedQuestion} />}
           </div>
         </div>
       )}
