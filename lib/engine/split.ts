@@ -45,7 +45,9 @@ export function checkPledge(p: FinancialPicture, pledge: Pledge, targetDate: str
   const warning = passed && !safe ? pledgeWarning(p, pledge, after, low, asOf) : null;
   return { passed, safe, warning, scoreBefore: before.score, scoreAfter: after.score,
     reason: !valid ? [...source.missingInputs, ...after.missingInputs, ...(!validDate(targetDate) || targetDate < asOf ? ['Choose a valid target date.'] : [])].join(' ')
-      : !hasMoney ? 'The selected account cannot fund this contribution today alongside its existing commitments.'
+      : !hasMoney ? (available < (account?.balance ?? 0)
+        ? `Only ${money0(Math.max(0, available))} of ${account?.nickname ?? 'this account'} is free. The rest is already promised to your other huddles.`
+        : 'The selected account cannot fund this contribution today alongside its existing commitments.')
       : warning ?? 'This exact account can fund the contribution today and the assessment remains green.' };
 }
 export function capacity(p: FinancialPicture, _targetDate: string, asOf: string): number {

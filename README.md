@@ -29,9 +29,9 @@ The calculation engine owns every financial number. Nemotron selects tools, comp
 | Track | Huddle's contribution | Evidence in the demo |
 | --- | --- | --- |
 | PNC — 360° Financial Health Navigator | Consolidated money view, five indicators, dated forecasts, purchase simulations, and actionable explanations | Change an input and inspect the resulting forecast and recommendation |
-| Capital One — Best Use of Nessie | Customer/account data, transaction history, bills, loans, merchants, and approved sandbox transfers | Show data retrieved from Nessie and the provider record for a supported write |
+| Capital One — Best Use of Nessie | Customer/account data, transaction history, bills, loans, merchants, sandbox account creation, and approved savings moves | Show data retrieved from Nessie and the provider record for a supported write |
 | NVIDIA — Use Nemotron Beyond a Chatbot | A bounded agent workflow that retrieves context, calls calculation tools, evaluates options, and proposes a verified plan | Display actual tool calls, their results, and the selected plan |
-| MLH — MongoDB Atlas, subject to entry eligibility | User accounts with unique-username and TTL session indexes, persisted health history, reusable plans, versioned Huddles, consent, reservations, and contribution records | Log in on a second device and retrieve the correct saved state |
+| MLH — MongoDB Atlas, subject to entry eligibility | User accounts with unique-username and TTL session indexes, persisted health history, reusable plans, versioned Huddles, consent, and saved pledges | Log in on a second device and retrieve the correct saved state |
 
 Track mapping follows the event's published sponsor prompts. Confirm the optional MLH entry name and eligibility before selecting it. [Official event tracks](https://zeroday.hackutd.co/)
 
@@ -39,15 +39,15 @@ Track mapping follows the event's published sponsor prompts. Confirm the optiona
 
 These decisions apply to the main implementation.
 
-- **Yellow pledges are allowed with explicit confirmation.** Show the trade-off privately and require a separate acknowledgement tied to the current assessment. Red results and incomplete assessments block commitment.
+- **Risky pledges are the member's call.** A pledge the account can fund commits. If it would not keep the member green, they get a private warning naming the bill at stake, plus advice and a safer amount. Only money the account does not have, after that member's other pledges, and incomplete assessments block commitment.
 - **Household finances are private until shared.** A spouse, dependent, or household role does not itself grant access to that person's financial records. Sharing requires an explicit, revocable grant.
 - **Friends retain private financial views.** Group members receive only the information allowed by the Huddle's phase and sharing rules.
 - **Real accounts, not a demo switcher.** Each person signs up and logs in on their own device; the server identifies the viewer from a session cookie and never trusts a member ID sent by the browser for private data. The demo uses seeded accounts with synthetic money, logged in on two devices. (This replaces the earlier one-laptop `Viewing as` selector.)
 - **People are added by unique username.** Every account picks a username at sign-up. Usernames are case-insensitive and unique, enforced by a unique database index. Friends and family are added by typing an exact username and the other person accepts on their own device; there is no public directory and no phone or email lookup.
 - **Every spending decision names an exact source account.** Store `sourceAccountId`. Checking/savings is a display label derived from that account.
 - **Saved plans have a defined context.** Reuse a plan only while the financial inputs, assessment date, commitments, and relevant policy versions still match.
-- **A fully approved plan starts a funding workflow.** The UI reports a fund as funded after provider-confirmed completion of its required contributions.
-- **The MVP funds contributions immediately at lock.** Evaluate current account liquidity and the immediate outflow. The event's target date informs planning, while future expected income cannot authorize a transfer today.
+- **Locking saves promises; it does not move money.** A locked Huddle records what each person is willing to spend, and they keep control of their own money in case something comes up. If later spending puts a pledge at risk, that member is warned privately and the group learns only that a commitment is at risk.
+- **Promises add up.** Each pledge is checked against current account money minus that member's pledges in their other live Huddles, as of today. Expected future income cannot make a pledge safe today.
 
 ## Build scope and order
 
@@ -139,7 +139,7 @@ Members are added by unique username (F7). The invited person sees the request o
 | Yellow acknowledgement | A payer with a yellow result privately confirms the specific trade-off | The aggregate progress update after commitment |
 | Revealed | All paying members have valid commitments for the current proposal | Each committed amount and total/shortfall |
 | Agreeing | Every payer approves the revealed contribution plan | Approved amounts and agreement progress |
-| Locked | All payers approved the same plan version and final checks pass | The locked plan and funding progress |
+| Locked | All payers approved the same plan version and final checks pass | The locked plan and each promised amount |
 | Cancelled | The group cancels an unfunded proposal | Cancellation status |
 
 Private source accounts, balances, health results, capacity calculations, and coaching remain private unless separately shared with the viewer. Reveal discloses agreed contribution amounts.
@@ -148,10 +148,10 @@ Private source accounts, balances, health results, capacity calculations, and co
 
 - Check the proposed pledge alongside that member's other active reservations. Replace the member's prior reservation for this Huddle when re-evaluating a revision.
 - Build the assessment context with the candidate commitment included exactly once. Persist its reservation and assessment against the resulting ledger version so the initial reservation does not invalidate its own approval. A later change to another commitment requires a fresh check.
-- Green may commit directly. Yellow requires a separate acknowledgement of the current assessment. Red and `needsInput` cannot commit.
-- Record the approved amount, account, assessment fingerprint, proposal version and yellow acknowledgement where applicable.
+- Green commits directly. Anything else the account can fund commits with a private warning. `needsInput` and amounts beyond the member's available money cannot commit.
+- Record the approved amount, account, assessment fingerprint, proposal version and any warning shown.
 - A change to cost, target date, payer list, amounts or source accounts creates a new proposal version and invalidates affected assessments and all prior group agreements.
-- Revalidate current data immediately before funding. A stale pledge returns to a state requiring the member's review.
+- Re-check every pledge against current data after each health check, even after lock. A pledge that stops fitting is flagged and stays in place until the member or group acts.
 - Allow at most three completed proposal rounds before the creator chooses a lower total, a new date or cancellation of an unfunded proposal.
 
 **Shortfalls and declines — P2**
@@ -160,19 +160,17 @@ Private source accounts, balances, health results, capacity calculations, and co
 - The creator may revise the total or date. Members review the revised proposal.
 - Decline reasons are change my amount, split feels unfair, total/date does not work, and leave the Huddle. Share only the reason the member elects to disclose.
 - Fair-split calculations use the members' permitted private capacities inside the trusted service. Return proposed amounts to the group, and let each member accept or retain their own amount. Keep personal explanations in individual coaching contexts.
-- A leaving member releases an unfunded reservation. Money already recorded as transferred requires a separate, explicitly approved reconciliation/refund operation and cannot disappear through a membership edit.
+- A leaving member's promise is released. No money has moved, so there is nothing to refund.
 
-### F5 — Consented mock funding
+### F5 — Saved promises, not transfers
 
-After all paying members agree to the current proposal, execute supported Nessie transfers from each exact source account into the Huddle's designated sandbox fund account.
+When all paying members agree, the Huddle locks and each person's amount is saved as a promise. No money moves, deliberately: people keep control of their own money if something comes up.
 
-- Create a dedicated sandbox account for the fund under a designated demo customer and retain the link in Huddle metadata. App membership provides the shared view of its contributions.
-- Tag fund accounts in application metadata and exclude them from the nominal owner's personal spendable balances. Account ownership in the sandbox must not make group contributions available for that person's unrelated spending.
-- Show pledged, approved, pending and completed totals separately. Submitted transfers become completed only after confirming the provider outcome.
-- Persist one contribution operation per Huddle, member and locked proposal version. Repeated clicks must reuse the existing operation.
-- Keep a stable operation identifier, provider transfer ID and reconciliation status. Reconcile an ambiguous timeout before issuing another write.
-- Preserve completed transfers when another contribution fails. A retry addresses only the unresolved operation after checking its provider status.
-- A confirmed transfer replaces its corresponding reservation. Retain a reservation while an outflow remains unreflected in a provider balance, then release it after reconciliation. Each contribution affects available funds once.
+- Members can keep spending. Every health check re-tests their pledges, including on locked Huddles.
+- If spending makes a pledge unaffordable, that member gets a private warning and a Nemotron plan to keep it. The group sees only that a commitment is at risk, never whose or why.
+- A member who pledged despite a warning has already been told the risk, so that pledge is flagged only if the money is gone.
+- A member's pledges add up across Huddles. Their other live promises are subtracted from what a new pledge can use, in private checks only.
+- A production version connected to real banks would add per-transfer authorization, a licensed payment partner to hold pooled funds, refunds when one payment fails, and a live balance check right before charging.
 
 Nessie requests and database writes do not form one atomic transaction. This workflow must represent partial progress and recover from interrupted requests.
 
@@ -215,14 +213,14 @@ The paths below are documentation findings. Endpoint and payload behavior still 
 | Resource | Relevant documented operations | Huddle usage |
 | --- | --- | --- |
 | Customers | `GET/POST /customers`, `GET/PUT /customers/{id}`, `GET /accounts/{id}/customer` | Seeded identities and ownership mapping |
-| Accounts | `GET/POST /customers/{id}/accounts`, `GET /accounts/{id}`, `PUT /accounts/{id}` | Checking, savings, credit-card balances and fund account |
+| Accounts | `GET/POST /customers/{id}/accounts`, `GET /accounts/{id}`, `PUT /accounts/{id}` | Checking, savings and credit-card balances |
 | Deposits | `GET/POST /accounts/{id}/deposits`, `GET /deposits/{id}` | Income history and payroll-like seed records |
 | Withdrawals | `GET/POST /accounts/{id}/withdrawals`, `GET /withdrawal/{withdrawal_id}` | Cash outflows and a documented fallback for sandbox expense events |
 | Bills | `GET /customers/{id}/bills`, `GET/POST /accounts/{id}/bills`, `GET/PUT /bills/{billId}` | Scheduled and recurring obligations |
 | Loans | `GET/POST /accounts/{id}/loans`, `GET/PUT /loans/{id}` | Loan obligations and monthly payments |
 | Merchants | `GET/POST /merchants`, `GET/PUT /merchants/{id}` | Spending categories and seed merchants |
 | Purchases | `GET/PUT/DELETE /purchase/{purchase_id}` in the current reference | Merchant-based history where list/create operations are confirmed |
-| Transfers | `GET/PUT/DELETE /transfers/{transfer_id}` in the reference; `POST /accounts/{id}/transfers` in Quick Start | Approved mock contributions and provider reconciliation |
+| Transfers | `GET/PUT/DELETE /transfers/{transfer_id}` in the reference; `POST /accounts/{id}/transfers` in Quick Start | Approved savings moves from a plan |
 | ATMs and branches | Directory lookups | Available resources outside the core workflow |
 | Enterprise | Customer, deposit and withdrawal lookups | Broad resource access that does not replace Huddle's per-member filtering |
 
@@ -254,7 +252,7 @@ The docs expose banking records and transactions. Huddle implements paycheck inf
 2. Create or reuse Huddle-owned synthetic customers and source accounts.
 3. Verify a deposit, account retrieval, bill and loan operation, including accepted fields.
 4. Verify supported purchase history and creation operations. Where needed, use clearly labeled synthetic history and documented withdrawal events while resolving the missing capability.
-5. Verify one mock source-to-fund transfer and retrieve its status and both balances.
+5. Verify one mock savings-to-checking transfer and retrieve its status and both balances.
 6. Record response shape, timestamps, monetary units and observed balance/status semantics.
 7. Save normalized fixtures so UI and engine work can continue independently.
 
@@ -299,7 +297,7 @@ Tools derive authorization from the server request context. A model-supplied mem
 - Treat structured output as untrusted until parsed and validated. Reject unknown tools, malformed arguments and references to nonexistent simulation results.
 - Show actual tool activity, timing and result summaries. Keep private financial context and raw model reasoning out of shared activity views.
 - On timeout or rate limiting, return verified partial results, retain a labeled previous plan if available, and offer an explicit retry.
-- Recommendation tools return proposed actions. User-confirmed application routes perform supported mock funding operations.
+- Recommendation tools return proposed actions. User-confirmed application routes perform any approved savings move.
 - A request to reduce a subscription records a proposed/app-tracked budget change. Its simulated saving becomes an actual observed saving only when supported by updated records.
 
 The NVIDIA hosted API uses a chat-completions endpoint. Actual tool support and request options depend on the chosen model/service. [NVIDIA API reference](https://docs.api.nvidia.com/nim/reference/llm-apis)
@@ -370,7 +368,7 @@ lib/agent/               model client, tool schemas, loop and prompts
 - Savings-protection usage uses a fixed pre-scenario baseline: current savings plus unallocated savings withdrawals in the preceding 30 days. A matching goal spend does not count as emergency-cushion use. The configured status thresholds determine its effect.
 - Monthly forecasts preserve the original day through short months. Semi-monthly income uses two calendar days, distinct from a 14-day biweekly schedule; ambiguous day patterns require confirmation. Pending or unknown transaction settlement is surfaced as incomplete input rather than replayed into a confirmed balance.
 - “Yes” requires a complete green result and sufficient money in the exact source account. “Yes, if…” is shown only for a recomputed same-account payday alternative. The prototype supports a bounded forecast of at most 365 days and does not claim unverified long-term savings plans.
-- Pledge checks evaluate immediate funding, including existing reservations, rather than counting future pay before the event. Yellow remains blocked until the separate acknowledgement workflow is implemented. Huddle persistence, reservation-ledger concurrency and funding reconciliation are still P1 work; a locally locked plan does not transfer money.
+- Pledge checks evaluate immediate funding, including existing reservations, rather than counting future pay before the event. A pledge that isn't safe commits with a private warning. A locked plan saves promises and does not transfer money.
 
 ## Persistent state
 
@@ -427,7 +425,7 @@ Seed synthetic records for Alex, Jordan, Maya, Leo and Sam. Keep names human-rea
 
 Create approximately 60 days of synthetic history with realistic payroll cadence and spending categories. Choose dates relative to the controlled assessment clock. Derive displayed scores and readiness dates from the actual fixtures and engine; keep expected values in meaningful regression tests.
 
-The main demonstration uses two devices, for example a laptop logged in as `alex` and a phone logged in as `sam`. It shows personal assessment, one purchase simulation, a Huddle invitation sent by username that appears on the other device, private pledges, a yellow acknowledgement or private revision, reveal on both screens, agreement, and reconciled mock funding. Logging out and back in shows saved-result consistency. A separate private view demonstrates household sharing only after consent.
+The main demonstration uses two devices, for example a laptop logged in as `alex` and a phone logged in as `sam`. It shows personal assessment, one purchase simulation, a Huddle invitation sent by username that appears on the other device, private pledges, a private warning on a risky pledge, reveal on both screens, a cheaper alternative the whole group votes on if they come up short, agreement, and a lock that saves everyone's promise without moving money. Logging out and back in shows saved-result consistency. A separate private view demonstrates household sharing only after consent.
 
 ## Local setup contract
 
@@ -443,8 +441,8 @@ Leaving removes the member, clears remaining approvals and fair-split suggestion
 ownership to another account holder when necessary. At one or fewer remaining participants,
 the Huddle is deleted; groups require at least two people at creation. Pending invitees count as
 participants. Declining the final invite applies the same cleanup. Deletions use version checks
-and disappear from other windows through the five-second poll. Locked prototype Huddles still
-only schedule transfers; this removal flow does not move or refund money.
+and disappear from other windows through the five-second poll. Locked Huddles
+only save promises, so this removal flow has no money to move or refund.
 
 New sign-ups read one of our seeded synthetic customers through the live Nessie API and
 randomly vary its checking/savings balances, regular payroll, bills, subscriptions and available

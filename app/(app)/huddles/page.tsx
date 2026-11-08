@@ -114,7 +114,7 @@ export default function HuddlesPage() {
               <div className="flex justify-between gap-3 text-sm">
                 <span>
                   {h.phase === 'locked'
-                    ? 'Plan locked · funding pending'
+                    ? 'Plan locked · amounts promised'
                     : revealed
                       ? `${money0(h.totalCommitted ?? 0)} of ${money0(h.totalCost)} committed`
                       : `${committed} of ${h.payingCount} committed`}

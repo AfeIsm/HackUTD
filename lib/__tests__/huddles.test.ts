@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkPledge } from '../engine/split';
-import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor } from '../huddles';
+import { type Huddle, applyAgree, applyDecline, applyInviteAnswer, applyPledge, applyLeave, newParticipant, viewFor, withOtherPledges } from '../huddles';
 import { ASOF, alex } from '../engine/__tests__/fixtures';
 
 const huddle = (participants = [newParticipant('alex', 'u1', 'Alex')], totalCost = 100): Huddle => ({
@@ -34,6 +34,40 @@ describe('Huddle phase machine + privacy filter', () => {
     expect(h.participants[0].committed).toBe(false);
     expect(h.participants[0].sourceAccountId).toBe('a1');
     expect(JSON.stringify(viewFor(h, 'someone-else'))).not.toContain('a1');
+  });
+
+  describe('promises in other huddles count against you', () => {
+    const other = (over: Partial<Huddle> = {}, pledge = 60000): Huddle => ({
+      ...huddle([newParticipant('alex', 'u1', 'Alex', { committed: true, pledge, sourceAccountId: 'a1' }), newParticipant('sam', 'u2', 'Sam', { committed: true, pledge: 99, sourceAccountId: 's1' })]),
+      id: 'other', ...over,
+    });
+    const after = (h: Huddle) => withOtherPledges(rich, [h], 'this', ASOF);
+
+    it('refuses a second pledge the first one already spoke for, and says why', () => {
+      const r = checkPledge(after(other()), { amount: 60000, sourceAccountId: 'a1' }, '2027-03-20', ASOF);
+      expect(rich.accounts.find((a) => a.id === 'a1')?.balance).toBe(80000);
+      expect(r.passed).toBe(false);
+      expect(r.reason).toBe('Only $200 of Checking is free. The rest is already promised to your other huddles.');
+    });
+    it('still allows what is left', () => {
+      expect(checkPledge(after(other()), { amount: 10000, sourceAccountId: 'a1' }, '2027-03-20', ASOF).passed).toBe(true);
+    });
+    it('counts only your own pledge, never someone else’s', () => {
+      expect(after(other()).reservations.map((r) => r.amount)).toEqual([60000]);
+    });
+    it('ignores this huddle, cancelled huddles and promises whose date has passed', () => {
+      expect(withOtherPledges(rich, [other()], 'other', ASOF).reservations).toEqual([]);
+      expect(after(other({ phase: 'cancelled' })).reservations).toEqual([]);
+      expect(after(other({ targetDate: '2026-11-01' })).reservations).toEqual([]);
+    });
+    it('a stale account or deleted goal can’t break the check', () => {
+      const gone = other();
+      gone.participants[0] = { ...gone.participants[0], sourceAccountId: 'old-account' };
+      expect(after(gone).reservations).toEqual([]);
+      const noGoal = other();
+      noGoal.participants[0] = { ...noGoal.participants[0], goalId: 'deleted' };
+      expect(after(noGoal).reservations[0].goalId).toBeUndefined();
+    });
   });
 
   it('commits a yellow pledge with a warning only that person can see', () => {

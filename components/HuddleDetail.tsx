@@ -147,7 +147,7 @@ export function HuddleDetail({ id }: { id: string }) {
               done={short === 0}
               note={
                 h.phase === 'locked'
-                  ? 'Plan locked. Transfers are scheduled, not executed yet.'
+                  ? 'Plan locked. Everyone’s amount is saved as a promise. No money has moved.'
                   : h.phase === 'cancelled'
                     ? 'This huddle was cancelled.'
                     : short > 0
@@ -201,12 +201,12 @@ export function HuddleDetail({ id }: { id: string }) {
 
           {h.phase === 'locked' && (
             <div className="flex flex-col gap-2 rounded-xl bg-bg p-4">
-              <Eyebrow>Transfers to the {h.name} fund</Eyebrow>
+              <Eyebrow>Promised to {h.name}</Eyebrow>
               {payersShown.map((p) => (
                 <div key={p.memberId} className="flex justify-between gap-3 py-1 text-sm">
-                  <span>{p.name} → trip fund</span>
+                  <span>{p.name}</span>
                   <span className="font-semibold">
-                    {money0(p.pledge ?? 0)} · <span className="text-muted">Scheduled</span>
+                    {money0(p.pledge ?? 0)} · <span className="text-muted">Promised</span>
                   </span>
                 </div>
               ))}
@@ -255,7 +255,7 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       <div className="flex flex-col gap-2.5">
         <h2 className="m-0 text-[22px]">Locked</h2>
         <p className="m-0 leading-relaxed text-ink-2">
-          Your {money0(mine.pledge ?? 0)} from {sourceText} is pledged to the {h.name} fund.
+          You’ve promised {money0(mine.pledge ?? 0)} from {sourceText} to {h.name}. No money has moved, so you can still spend it. We’ll warn you if that puts this promise at risk.
         </p>
       </div>
     );

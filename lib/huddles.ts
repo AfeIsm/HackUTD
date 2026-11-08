@@ -6,7 +6,7 @@
 // Privacy (PLAN.md §8): during pledging others only see WHETHER you committed; after reveal
 // they see amounts. Your source account, health check result and feedback are never shared.
 
-import type { DeclineReason, HuddlePhase } from './types';
+import type { DeclineReason, FinancialPicture, HuddlePhase } from './types';
 import type { PledgeCheck } from './engine/split';
 import type { PledgeAdvice } from './engine/pledgeAdvice';
 import type { Proposal, ProposalReview, PurchaseBrief, PurchaseSearch } from './purchase/types';
@@ -67,6 +67,21 @@ export const newParticipant = (memberId: string, userId: string | null, name: st
   committed: false, checkPassed: null, feedback: null, suggestion: null, agreed: false,
   atRisk: false, riskReason: null, riskScore: null, ...over,
 });
+
+/**
+ * Locking moves no money, so a balance alone can't show what someone has already promised.
+ * Their other live pledges count as reservations, for their own private checks only.
+ */
+export function withOtherPledges(p: FinancialPicture, huddles: Huddle[], thisHuddleId: string, asOf: string): FinancialPicture {
+  const promised = huddles.flatMap((h) => {
+    if (h.id === thisHuddleId || h.phase === 'cancelled' || h.targetDate < asOf) return [];
+    const mine = h.participants.find((x) => x.memberId === p.memberId && x.committed && x.pledge && x.sourceAccountId);
+    if (!mine || !p.accounts.some((a) => a.id === mine.sourceAccountId && a.ownerMemberId === p.memberId)) return []; // stale account
+    const goalId = mine.goalId && p.goals.some((g) => g.id === mine.goalId && g.accountId === mine.sourceAccountId) ? mine.goalId : undefined;
+    return [{ id: `huddle:${h.id}`, sourceAccountId: mine.sourceAccountId as string, amount: mine.pledge as number, date: asOf, ...(goalId ? { goalId } : {}) }];
+  });
+  return promised.length ? { ...p, reservations: [...p.reservations, ...promised] } : p;
+}
 
 export const payers = (h: Huddle) => h.participants.filter((p) => p.isPaying);
 export const totalPledged = (h: Huddle) => payers(h).reduce((s, p) => s + (p.committed ? p.pledge ?? 0 : 0), 0);
