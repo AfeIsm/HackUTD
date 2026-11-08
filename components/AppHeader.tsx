@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
-import { PEOPLE, getPerson } from '@/lib/people';
-import { useViewer } from '@/lib/viewer';
+import { PEOPLE } from '@/lib/people';
+import { logout, useMe } from '@/lib/useMe';
 import { Avatar } from './ui';
 
 const NAV = [
@@ -42,10 +42,31 @@ function ActiveNav() {
   return <NavLinks pathname={usePathname()} />;
 }
 
-export function AppHeader() {
-  const { viewerId, setViewerId } = useViewer();
-  const me = getPerson(viewerId);
+// Logged-in user: name, @username, log out. Who you are comes from the session, not a picker.
+function UserMenu() {
+  const me = useMe();
+  if (me.status !== 'in') return <span className="min-h-11" aria-hidden="true" />;
+  const { user } = me;
+  const color = PEOPLE.find((p) => p.id === user.memberId)?.color ?? '#1F4FD8';
+  return (
+    <div className="flex items-center gap-3">
+      <Avatar initial={(user.name[0] ?? '?').toUpperCase()} color={color} size={32} />
+      <div className="flex flex-col leading-tight">
+        <span className="text-[15px] font-semibold text-ink">{user.name}</span>
+        <span className="text-[13px] text-muted">@{user.username}</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => void logout()}
+        className="min-h-11 rounded-[10px] px-3 text-[14px] font-semibold text-ink-2 hover:bg-soft hover:text-ink cursor-pointer"
+      >
+        Log out
+      </button>
+    </div>
+  );
+}
 
+export function AppHeader() {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line py-4">
       <div className="flex flex-wrap items-center gap-6">
@@ -56,22 +77,7 @@ export function AppHeader() {
           <ActiveNav />
         </Suspense>
       </div>
-
-      <label className="flex items-center gap-2.5 text-sm text-muted">
-        <Avatar initial={me.initial} color={me.color} size={32} />
-        <span className="sr-only">Signed in as</span>
-        <select
-          value={viewerId}
-          onChange={(e) => setViewerId(e.target.value)}
-          className="min-h-11 rounded-[10px] border border-line-2 bg-white px-3 text-[15px] font-medium text-ink"
-        >
-          {PEOPLE.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <UserMenu />
     </header>
   );
 }

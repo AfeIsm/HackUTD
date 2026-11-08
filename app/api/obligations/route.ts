@@ -1,19 +1,20 @@
-// PATCH /api/obligations {member, key, essential} → save the user's essential/non-essential tag,
+// PATCH /api/obligations {key, essential} (member from the session) → save the user's essential/non-essential tag,
 // then re-run the health check.
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDb, mongoConfigured } from '@/lib/db/mongo';
-import { PEOPLE } from '@/lib/people';
+import { requireViewer } from '@/lib/auth/viewer';
 import type { ObligationTagDoc } from '@/lib/services/picture';
 import { buildPicture } from '@/lib/services/picture';
 import { runHealthCheck } from '@/lib/services/health';
 
 export async function PATCH(request: NextRequest) {
   if (!mongoConfigured()) return NextResponse.json({ error: 'Saving needs MONGODB_URI' }, { status: 503 });
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  const member = viewer.memberId;
   const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const member = typeof b.member === 'string' ? b.member : '';
   const key = typeof b.key === 'string' ? b.key : '';
-  if (!PEOPLE.some((p) => p.id === member)) return NextResponse.json({ error: 'Unknown member' }, { status: 404 });
   if (typeof b.essential !== 'boolean') return NextResponse.json({ error: 'essential must be true or false' }, { status: 400 });
 
   const { picture } = await buildPicture(member);

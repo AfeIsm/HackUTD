@@ -1,20 +1,19 @@
-// GET  /api/health?member=alex   → latest saved health check (runs one if none yet)
-// POST /api/health {member}      → re-run the health check now and save it
+// GET  /api/health → the logged-in user's latest saved health check (runs one if none yet)
+// POST /api/health → re-run their health check now and save it
+// The member always comes from the session, never from the request.
 
-import { NextResponse, type NextRequest } from 'next/server';
-import { PEOPLE } from '@/lib/people';
+import { NextResponse } from 'next/server';
 import { latestHealth, runHealthCheck } from '@/lib/services/health';
+import { requireViewer } from '@/lib/auth/viewer';
 
-const known = (id: unknown): id is string => typeof id === 'string' && PEOPLE.some((p) => p.id === id);
-
-export async function GET(request: NextRequest) {
-  const member = request.nextUrl.searchParams.get('member');
-  if (!known(member)) return NextResponse.json({ error: 'Unknown member' }, { status: 404 });
-  return NextResponse.json(await latestHealth(member));
+export async function GET() {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  return NextResponse.json(await latestHealth(viewer.memberId));
 }
 
-export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => ({}))) as { member?: unknown };
-  if (!known(body.member)) return NextResponse.json({ error: 'Unknown member' }, { status: 404 });
-  return NextResponse.json(await runHealthCheck(body.member, 'you re-ran the check'));
+export async function POST() {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  return NextResponse.json(await runHealthCheck(viewer.memberId, 'you re-ran the check'));
 }
