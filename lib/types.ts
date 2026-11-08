@@ -43,6 +43,24 @@ export interface ObligationTag {
   essential: boolean;
 }
 
+// Engine inputs. Backend maps raw Nessie bills/loans into these,
+// so the engine never depends on Nessie's field names.
+export interface Bill {
+  id: string;
+  payee: string;
+  amount: number;
+  nextDate: string; // YYYY-MM-DD
+  cadence?: Obligation['cadence']; // defaults to monthly
+  category?: string;
+}
+
+export interface Loan {
+  id: string;
+  type: string; // e.g. "car", "student"
+  monthlyPayment: number;
+  nextDate: string; // YYYY-MM-DD
+}
+
 export interface Paycheck {
   avgAmount: number;
   cadenceDays: number;
