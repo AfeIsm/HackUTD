@@ -60,6 +60,7 @@ function ensureIndexes(db: Db): Promise<void> {
     db.collection('agentAnswers').createIndex({ memberId: 1, createdAt: -1 }),
     // Applied plans: one per (member, data fingerprint, plan) → a double click can't apply twice.
     db.collection('appliedPlans').createIndex({ memberId: 1, dataHash: 1, planKey: 1 }, { unique: true }),
+    db.collection('serpCache').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }), // Atlas clears old searches
     db.collection('friendRequests').createIndex({ toUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex({ fromUserId: 1, status: 1 }),
     db.collection('friendRequests').createIndex(

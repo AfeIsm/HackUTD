@@ -17,6 +17,8 @@ import { DEMO_ASOF, lookOf } from '@/lib/people';
 import { usePicture } from '@/lib/usePicture';
 import { huddleAction, useHuddles } from '@/lib/useHuddles';
 import { useViewer } from '@/lib/viewer';
+import { PledgeCoach } from './PledgeCoach';
+import { PurchasePanel } from './PurchasePanel';
 import { Avatar, Card, Eyebrow, Pill, btn, btn2, input } from './ui';
 
 const STEPS = ['Pledge privately', 'Reveal', 'Agree', 'Locked'];
@@ -45,6 +47,17 @@ export function HuddleDetail({ id }: { id: string }) {
       <Card>
         <p className="m-0 text-ink-2">This huddle doesn’t exist, or you’re not part of it.</p>
         <Link href="/huddles" className="mt-2 inline-block font-semibold">← All huddles</Link>
+      </Card>
+    );
+  }
+
+  // Browsers keep one login per site: a second account logging in elsewhere replaces this tab's.
+  if (h.me && h.me.memberId !== viewerId) {
+    return (
+      <Card className="flex flex-col gap-3">
+        <h1 className="m-0 text-[24px]">This browser switched accounts</h1>
+        <p className="m-0 text-ink-2">Another account logged in on this browser, so this tab can’t show your view anymore. To test two people at once, use a private window or a second browser for the other account.</p>
+        <button type="button" className={`${btn} self-start`} onClick={() => window.location.reload()}>Reload as the current account</button>
       </Card>
     );
   }
@@ -107,6 +120,8 @@ export function HuddleDetail({ id }: { id: string }) {
           {error}
         </p>
       )}
+
+      <PurchasePanel h={h} isCreator={h.createdBy === viewerId} run={run} busy={busy} />
 
       <div className="flex flex-wrap items-start gap-5">
         <section aria-label="Your private panel" className="box-border flex min-w-0 flex-[1_1_420px] flex-col gap-[18px] rounded-[14px] border-2 border-ink bg-surface p-6">
@@ -254,8 +269,11 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
             <strong className="text-[17px]">
               {money0(mine.pledge ?? 0)} from {sourceText} didn’t pass your health check.
             </strong>
-            <span className="text-sm leading-normal">{mine.feedback}</span>
+            {!mine.advice && <span className="text-sm leading-normal">{mine.feedback}</span>}
           </div>
+        )}
+        {mine.checkPassed === false && mine.advice && !changing && (
+          <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
         )}
         {mine.suggestion && !changing && (
           <div className="flex flex-col gap-2.5">
@@ -280,10 +298,18 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
   }
 
   const committedBox = (
-    <div className="flex flex-col gap-1.5 rounded-xl bg-good-bg p-4 text-[#0D5A2E]">
-      <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
-      <span className="text-sm">{mine.feedback}</span>
-    </div>
+    <>
+      <div role={mine.warning ? 'alert' : undefined} className={`flex flex-col gap-1.5 rounded-xl p-4 ${mine.warning ? 'bg-warn-bg text-warn' : 'bg-good-bg text-[#0D5A2E]'}`}>
+        <strong className="text-[17px]">Committed: {money0(mine.pledge ?? 0)} from {sourceText}</strong>
+        <span className="text-sm leading-normal">{mine.feedback}</span>
+        {mine.warning && h.phase === 'pledging' && (
+          <button type="button" className={`${btn2} mt-1 self-start`} onClick={() => setChanging(true)}>Change my amount</button>
+        )}
+      </div>
+      {mine.warning && mine.advice && (
+        <PledgeCoach mine={mine} advice={mine.advice} busy={busy} onPledge={(amount) => void pledge(amount, mine.sourceAccountId ?? checking, mine.goalId ?? undefined)} />
+      )}
+    </>
   );
 
   const editTotal = isCreator && (h.phase === 'revealed' || h.phase === 'agreeing') && <CreatorControls h={h} run={run} busy={busy} />;
@@ -331,7 +357,7 @@ function PrivatePanel({ h, mine, picture, isCreator, short, run, busy }: {
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={busy} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
+            <button type="button" className={btn} disabled={busy || !!h.purchase?.review} onClick={() => void run({ action: 'agree' })}>I agree to everyone’s commitments</button>
             <button type="button" className={btn2} onClick={() => setDeclineReason(declineReason ? null : 'changeMyAmount')}>Request changes</button>
           </div>
           {declineReason && (

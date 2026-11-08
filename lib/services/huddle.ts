@@ -11,6 +11,7 @@ import { DEMO_ASOF, PEOPLE } from '../people';
 import { buildPicture } from './picture';
 import { connectionsFor } from './social';
 import { capacity, checkPledge, fairSplit } from '../engine/split';
+import { pledgeAdvice, type PledgeAdvice } from '../engine/pledgeAdvice';
 import { validCents } from '../engine/money';
 import { validDate } from '../engine/validation';
 import {
@@ -18,7 +19,9 @@ import {
   newParticipant, payers, viewFor, applyLeave,
 } from '../huddles';
 import type { Viewer } from '@/lib/auth/viewer';
-import type { DeclineReason, FinancialPicture } from '@/lib/types';
+import type { AgentStep, DeclineReason, FinancialPicture } from '@/lib/types';
+import { acceptProposal, maybeAutoSearch, rejectProposal, searchBlocked, settleReview, startReview, startSearch } from '../purchase/review';
+import type { PurchaseBrief, PurchaseSearch } from '../purchase/types';
 
 interface HuddleDoc extends Omit<Huddle, 'id'> {
   _id: string;
@@ -31,11 +34,22 @@ const huddles = async () => (await getDb()).collection<HuddleDoc>('huddles');
 const fromDoc = (d: HuddleDoc): Huddle => ({
   id: d._id, name: d.name, totalCost: d.totalCost, targetDate: d.targetDate, createdBy: d.createdBy, phase: d.phase,
   round: d.round, message: d.message, lastDecline: d.lastDecline, fairSplit: d.fairSplit ?? null, participants: d.participants,
+  brief: d.brief ?? null, search: d.search ?? null, review: d.review ?? null, selected: d.selected ?? null, searchRuns: d.searchRuns ?? 0,
+  proposalFeedback: d.proposalFeedback ?? [], rejectedOfferKeys: d.rejectedOfferKeys ?? [],
 });
+
+/** Server only: includes private fields. Never return this to a browser; use viewFor. */
+export async function getHuddle(id: string): Promise<Huddle | null> {
+  const doc = await (await huddles()).findOne({ _id: id });
+  return doc ? fromDoc(doc) : null;
+}
 const hasMoney = async (memberId: string) => PEOPLE.some((p) => p.id === memberId && p.hasAccounts) ||
   Boolean(await (await getDb()).collection('members').findOne({ memberId, status: 'ready' }));
 
-export type ActionResult = { ok: true } | { ok: false; status: number; error: string };
+// A pledge that just failed its private check: Nemotron writes advice for it after the response.
+export interface FailedPledge { huddleId: string; name: string; pledge: number; sourceAccountId: string; goalId?: string; targetDate: string; advice: PledgeAdvice }
+
+export type ActionResult = { ok: true; failedPledge?: FailedPledge; startSearch?: { huddleId: string; runId: string } } | { ok: false; status: number; error: string };
 const fail = (status: number, error: string): ActionResult => ({ ok: false, status, error });
 
 /** Every huddle the viewer is in (joined or invited), privacy-filtered for them. */
@@ -95,7 +109,10 @@ export type HuddleAction =
   | { action: 'edit'; totalCost?: number; targetDate?: string }
   | { action: 'cancel' }
   | { action: 'leave' }
-  | { action: 'delete' };
+  | { action: 'delete' }
+  | { action: 'findOptions' }
+  | { action: 'reviewProposal'; proposalId: string }
+  | { action: 'respondProposal'; accept: boolean; reason?: string };
 
 /** Each payer's capacity from THEIR picture; only the resulting amounts are stored. */
 async function computeFairSplit(h: Huddle): Promise<Record<string, number>> {
@@ -114,32 +131,64 @@ async function next(h: Huddle, viewer: Viewer, a: HuddleAction): Promise<Huddle 
   if (!me) return fail(404, 'Huddle not found.');
   const open = h.phase !== 'locked' && h.phase !== 'cancelled';
   const isCreator = h.createdBy === viewer.memberId;
+  const inReview = 'Finish reviewing the proposal first.';
 
   switch (a.action) {
-    case 'leave':
-      return applyLeave(h, me.memberId);
+    case 'findOptions': {
+      if (!isCreator) return fail(403, 'Only the creator can ask for alternatives.');
+      const blocked = searchBlocked(h, Date.now());
+      return blocked ? fail(409, blocked) : startSearch(h, 'requested', randomBytes(4).toString('hex'), new Date().toISOString());
+    }
+    case 'reviewProposal': {
+      if (!isCreator) return fail(403, 'Only the creator can send a proposal for review.');
+      const started = startReview(h, a.proposalId);
+      return typeof started === 'string' ? fail(409, started) : started;
+    }
+    case 'respondProposal': {
+      if (!h.review || !open) return fail(409, 'There’s nothing to review right now.');
+      if (!me.joined || !me.userId) return fail(409, 'Join the huddle first.');
+      if (h.review.acceptedBy.includes(me.memberId)) return fail(409, 'You already accepted this proposal.');
+      if (a.accept) return acceptProposal(h, me.memberId);
+      const reason = (a.reason ?? '').trim().slice(0, 300);
+      if (reason.length < 3) return fail(400, 'Tell Nemotron why, so it can find something better.');
+      const rejected = rejectProposal(h, reason);
+      return searchBlocked(rejected, Date.now())
+        ? { ...rejected, message: 'Someone asked for a different option. No automatic searches are left, so the group will need to decide.' }
+        : startSearch(rejected, 'rejected', randomBytes(4).toString('hex'), new Date().toISOString());
+    }
+    case 'leave': {
+      const left = applyLeave(h, me.memberId);
+      return left && settleReview(left); // the person who left may have been the last holdout
+    }
     case 'delete':
       return isCreator ? null : fail(403, 'Only the owner can delete this huddle.');
     case 'answerInvite':
       if (me.joined) return fail(409, 'You’re already in this huddle.');
-      return a.accept ? applyInviteAnswer(h, me.memberId, true) : applyLeave(h, me.memberId);
+      if (!a.accept) {
+        const left = applyLeave(h, me.memberId);
+        return left && settleReview(left);
+      }
+      return applyInviteAnswer(h, me.memberId, true);
     case 'pledge': {
       if (!me.joined || !me.isPaying || !open) return fail(409, 'You can’t pledge right now.');
       if (!validCents(a.amount) || a.amount <= 0) return fail(400, 'Enter an amount.');
       const { picture } = await buildPicture(me.memberId); // YOUR data only, checked here on the server
       if (!picture) return fail(404, 'No accounts found.');
       const pledge = { amount: a.amount, sourceAccountId: a.sourceAccountId, ...(a.goalId ? { goalId: a.goalId } : {}) };
-      return applyPledge(h, me.memberId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF));
+      return applyPledge(h, me.memberId, pledge, checkPledge(picture, pledge, h.targetDate, DEMO_ASOF), pledgeAdvice(picture, pledge, h.targetDate, DEMO_ASOF));
     }
     case 'agree':
+      if (h.review) return fail(409, inReview);
       if (h.phase !== 'agreeing' || !me.committed) return fail(409, 'There’s nothing to agree to yet.');
       return applyAgree(h, me.memberId);
     case 'requestChanges':
+      if (h.review) return fail(409, inReview);
       if (h.phase !== 'agreeing' || !me.isPaying) return fail(409, 'You can only request changes while everyone is agreeing.');
       if (a.reason === 'out') return applyLeave(h, me.memberId);
       return applyDecline(h, me.memberId, a.reason, a.reason === 'unfairSplit' ? await computeFairSplit(h) : null);
     case 'edit':
       if (!isCreator || !open) return fail(403, 'Only the creator can change the total or date.');
+      if (h.review) return fail(409, inReview);
       if (a.totalCost !== undefined && (!validCents(a.totalCost) || a.totalCost <= 0)) return fail(400, 'Enter a total cost.');
       if (a.targetDate !== undefined && (!validDate(a.targetDate) || a.targetDate < DEMO_ASOF)) return fail(400, 'Pick a future date.');
       return applyEdit(h, { totalCost: a.totalCost, targetDate: a.targetDate });
@@ -154,7 +203,9 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
   for (let attempt = 0; attempt < 3; attempt++) {
     const doc = await col.findOne({ _id: id, 'participants.memberId': viewer.memberId });
     if (!doc) return fail(404, 'Huddle not found.');
-    const result = await next(fromDoc(doc), viewer, action);
+    const computed = await next(fromDoc(doc), viewer, action);
+    // Revealed and short → Nemotron looks for something that fits, once per funding state.
+    const result = computed && !('ok' in computed) ? maybeAutoSearch(computed, randomBytes(4).toString('hex'), Date.now()) : computed;
     if (result === null) {
       const removed = await col.deleteOne({ _id: id, version: doc.version });
       if (removed.deletedCount === 1) return { ok: true };
@@ -164,7 +215,20 @@ export async function actOnHuddle(viewer: Viewer, id: string, action: HuddleActi
     const fields: Partial<Huddle> = { ...result };
     delete fields.id;
     const res = await col.updateOne({ _id: id, version: doc.version }, { $set: { ...fields, version: doc.version + 1, updatedAt: new Date() } });
-    if (res.matchedCount === 1) return { ok: true };
+    if (res.matchedCount === 1) {
+      const mine = result.participants.find((p) => p.memberId === viewer.memberId);
+      const newRun = result.search?.status === 'running' && result.search.runId !== doc.search?.runId ? { huddleId: id, runId: result.search.runId } : undefined;
+      if (newRun) return { ok: true, startSearch: newRun, ...(action.action === 'pledge' && mine?.advice && mine.coachState === 'thinking' && mine.pledge && mine.sourceAccountId ? {
+        failedPledge: { huddleId: id, name: result.name, pledge: mine.pledge, sourceAccountId: mine.sourceAccountId, ...(mine.goalId ? { goalId: mine.goalId } : {}), targetDate: result.targetDate, advice: mine.advice },
+      } : {}) };
+      if (action.action === 'pledge' && mine?.advice && mine.coachState === 'thinking' && mine.pledge && mine.sourceAccountId) {
+        return { ok: true, failedPledge: {
+          huddleId: id, name: result.name, pledge: mine.pledge, sourceAccountId: mine.sourceAccountId,
+          ...(mine.goalId ? { goalId: mine.goalId } : {}), targetDate: result.targetDate, advice: mine.advice,
+        } };
+      }
+      return { ok: true };
+    }
     // someone else changed it in between: re-read and try again
   }
   return fail(409, 'Lots of changes at once. Try again.');
@@ -190,7 +254,8 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
     const check = checkPledge(picture, {
       amount: p.pledge, sourceAccountId: p.sourceAccountId, ...(p.goalId ? { goalId: p.goalId } : {}),
     }, d.targetDate, DEMO_ASOF);
-    const flag = !check.passed;
+    // Pledged despite a warning? They already know, so only flag it if the money is now gone.
+    const flag = !check.passed || (!check.safe && !p.warning);
     if (flag) atRisk++;
     const riskReason = flag ? check.reason : null;
     const riskScore = flag ? check.scoreAfter : null;
@@ -207,6 +272,42 @@ export async function recheckCommitments(memberId: string, picture: FinancialPic
     });
   }
   return { atRisk, newlyAtRisk };
+}
+
+// Each write checks the run is still the current one, so an old run can't overwrite a newer one.
+// Bumping `version` makes any action racing with it re-read instead of overwriting the search.
+const currentRun = (huddleId: string, runId: string) => ({ _id: huddleId, 'search.runId': runId, 'search.status': 'running' as const });
+
+export async function saveBrief(huddleId: string, runId: string, brief: PurchaseBrief): Promise<void> {
+  await (await huddles()).updateOne(currentRun(huddleId, runId), { $set: { brief, updatedAt: new Date() }, $inc: { version: 1 } } as never);
+}
+
+export async function appendSearchStep(huddleId: string, runId: string, step: AgentStep): Promise<void> {
+  await (await huddles()).updateOne(currentRun(huddleId, runId), { $push: { 'search.steps': step }, $inc: { version: 1 }, $set: { updatedAt: new Date() } } as never);
+}
+
+export async function finishSearch(huddleId: string, runId: string, patch: Partial<PurchaseSearch>): Promise<void> {
+  const col = await huddles();
+  const fields = Object.fromEntries(Object.entries({ status: 'done', ...patch }).map(([k, v]) => [`search.${k}`, v]));
+  const update = { $set: { ...fields, updatedAt: new Date() }, $inc: { version: 1 } };
+  // The top option goes straight to everyone, in the same write, as a new approval round.
+  const top = patch.proposals?.[0];
+  if (top) {
+    const opened = await col.updateOne({ ...currentRun(huddleId, runId), phase: { $nin: ['locked', 'cancelled'] } }, {
+      ...update,
+      $set: { ...update.$set, review: { proposal: top, acceptedBy: [] }, message: `Everyone needs to accept or turn down: ${top.title}.`, 'participants.$[].agreed': false },
+    } as never);
+    if (opened.matchedCount === 1) return;
+  }
+  await col.updateOne(currentRun(huddleId, runId), update as never);
+}
+
+/** Store Nemotron's advice on a failed pledge, only if that same pledge is still the current one. */
+export async function saveFailedPledgeCoach(f: FailedPledge, memberId: string, note: CoachNote | null): Promise<void> {
+  await (await huddles()).updateOne(
+    { _id: f.huddleId, participants: { $elemMatch: { memberId, pledge: f.pledge, sourceAccountId: f.sourceAccountId, coachState: 'thinking' } } },
+    { $set: { 'participants.$.coach': note, 'participants.$.coachState': note ? 'ready' : 'unavailable', updatedAt: new Date() }, $inc: { version: 1 } },
+  );
 }
 
 /** Store Nemotron's private plan on this member's row, only if the pledge is still at risk. */

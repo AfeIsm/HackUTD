@@ -46,6 +46,7 @@ How you work:
 3. Always call simulate (or can_afford) at least once yourself before finishing, even if you also asked get_engine_fix_plan.
    If can_afford says no, try options with simulate: weeklySavings until the date, cancelling non-essential subscriptions, or paying from the savings account, combined with the same purchase.
 4. ALWAYS finish by calling propose_plan with the best option you simulated (fewest changes that meets the goal, ideally a green score). If nothing works, still call propose_plan with no actions and say plainly that it isn't affordable yet. Never end with plain text.
+Use the user's paycheck timing and monthly leftover from get_overview. Savings goals in get_overview are money the user set aside for something specific: never suggest spending it on anything else. When recommending cuts, name the exact subscriptions and spending categories from get_spending.
 Rules: never invent or calculate a number yourself. In summary and explanation write NO numbers or dollar amounts at all: the app shows the engine's verified numbers next to your words. Use account ids and subscription keys exactly as tools give them. No investment or stock advice. Keep explanations short and plain.`;
 
 // The model must not state numbers (AGENTS.md: never compute money with the AI). Any sentence
@@ -77,10 +78,12 @@ function parseArgs(raw: string): Record<string, unknown> {
 function makePlan(picture: FinancialPicture, input: ScenarioInput, asOf: string, words: { summary?: unknown; explanation?: unknown }): AgentPlan | { error: string } {
   const scenario = runScenario(picture, input, asOf);
   if (!scenario.ok) return { error: scenario.error ?? 'Invalid plan.' };
-  const explanation = noNumbers(String(words.explanation ?? ''));
+  // The engine has the final say: words claiming green are dropped when the score says otherwise.
+  const notClaimingGreen = (s: string) => scenario.after!.status === 'green' ? s : s.split(/(?<=[.!?])\s+/).filter((x) => !/\bgreen\b/i.test(x)).join(' ').trim();
+  const explanation = notClaimingGreen(noNumbers(String(words.explanation ?? '')));
   return {
     ...judge(picture, input, scenario, asOf),
-    summary: noNumbers(String(words.summary ?? '')),
+    summary: notClaimingGreen(noNumbers(String(words.summary ?? ''))),
     explanation: explanation.length >= 15 ? explanation : '', // drop junk like a bare 'test'
     actions: scenario.actions, scoreBefore: scenario.before.score, scoreAfter: scenario.after!.score,
     statusBefore: scenario.before.status, statusAfter: scenario.after!.status, notGreen: scenario.after!.notGreen, problems: scenario.after!.problems,
@@ -114,10 +117,17 @@ export async function runAgent(picture: FinancialPicture, question: string, asOf
     if (Date.now() - started > TIME_LIMIT_MS) break;
     // Last turn (or out of time soon): it MUST propose, so a run always ends in a scored plan.
     const last = turn === MAX_TURNS - 1 || Date.now() - started > TIME_LIMIT_MS - 12_000;
+    // Hidden reasoning counts against max_tokens: with it on, Nemotron often ran out mid-thought
+    // and returned nothing, or ran past the request timeout. The engine does the real thinking.
     const res = await nemotron().chat.completions.create({
-      model: NEMOTRON_MODEL, messages, tools: TOOLS, temperature: 0, max_tokens: 900,
-      tool_choice: last ? { type: 'function', function: { name: 'propose_plan' } } : 'auto',
+      model: NEMOTRON_MODEL, messages, tools: TOOLS, temperature: 0, max_tokens: 1500,
+      tool_choice: last || nudged ? { type: 'function', function: { name: 'propose_plan' } } : 'auto',
+      ...{ chat_template_kwargs: { enable_thinking: false } },
+    }, { maxRetries: 0 }).catch((err: Error) => {
+      console.warn('Nemotron call failed:', err.message); // one bad call keeps the options already tested
+      return null;
     });
+    if (!res) break;
     const msg = res.choices[0]?.message;
     if (!msg) break;
     const calls = (msg.tool_calls ?? []).filter((c) => c.type === 'function');

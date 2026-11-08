@@ -33,6 +33,16 @@ export interface AppliedPlanDoc {
   createdAt: Date;
 }
 
+// A savings goal the member made in the app. The money stays in savings, set aside by name.
+export interface SavingsGoalDoc {
+  memberId: string;
+  goalId: string;
+  name: string;
+  amount: number; // cents
+  accountId: string; // one of the member's savings accounts
+  createdAt: Date;
+}
+
 export interface ObligationTagDoc {
   memberId: string;
   obligationKey: string;
@@ -40,8 +50,12 @@ export interface ObligationTagDoc {
 }
 
 /** Apply saved purchases (in the order they were made) and tag overrides on top of the Nessie picture. */
-export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[], applied: AppliedPlanDoc[] = []): FinancialPicture {
-  let picture = base;
+export function applyAppChanges(base: FinancialPicture, purchases: AppPurchase[], tags: ObligationTagDoc[], applied: AppliedPlanDoc[] = [], savedGoals: SavingsGoalDoc[] = []): FinancialPicture {
+  // Goals on accounts that no longer exist (regenerated demo finances) are skipped.
+  const goals = savedGoals
+    .filter((g) => base.accounts.some((a) => a.id === g.accountId && a.type === 'Savings' && a.ownerMemberId === base.memberId))
+    .map((g) => ({ id: g.goalId, name: g.name, amount: g.amount, accountId: g.accountId }));
+  let picture: FinancialPicture = goals.length ? { ...base, goals: [...base.goals, ...goals] } : base;
   const cancelled = new Set(applied.flatMap((a) => a.cancel));
   for (const a of applied) {
     if (!a.move) continue;
@@ -107,15 +121,16 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
       }
     }
     if (!snapshot) return { picture: null, source: 'none', saved: false };
-    const [purchases, tags, applied] = await Promise.all([
+    const [purchases, tags, applied, goals] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
       db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
+      db.collection<SavingsGoalDoc>('savingsGoals').find({ memberId }).sort({ createdAt: 1 }).toArray(),
     ]);
     const base = source === 'stale' ? { ...snapshot.picture,
       missingInputs: [...snapshot.picture.missingInputs, `Bank sync failed. Last successful sync: ${snapshot.syncedAt.toISOString()}. Refresh before approving spending.`],
     } : snapshot.picture;
-    return { picture: applyAppChanges(base, purchases, tags, applied), source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied, goals), source, saved: true };
   }
   if (!person || !person.hasAccounts) return { picture: null, source: 'none', saved: false };
   const loaded = await loadMember(memberId);
@@ -125,12 +140,13 @@ export async function buildPicture(memberId: string): Promise<LoadedPicture> {
   if (!mongoConfigured()) return { picture: base, source: loaded.source, saved: false };
   try {
     const db = await getDb();
-    const [purchases, tags, applied] = await Promise.all([
+    const [purchases, tags, applied, goals] = await Promise.all([
       db.collection<AppPurchase>('appPurchases').find({ memberId }).sort({ createdAt: 1 }).toArray(),
       db.collection<ObligationTagDoc>('obligationTags').find({ memberId }).toArray(),
       db.collection<AppliedPlanDoc>('appliedPlans').find({ memberId }).sort({ createdAt: 1 }).toArray(),
+      db.collection<SavingsGoalDoc>('savingsGoals').find({ memberId }).sort({ createdAt: 1 }).toArray(),
     ]);
-    return { picture: applyAppChanges(base, purchases, tags, applied), source: loaded.source, saved: true };
+    return { picture: applyAppChanges(base, purchases, tags, applied, goals), source: loaded.source, saved: true };
   } catch (err) {
     console.warn(`MongoDB unavailable for ${memberId}:`, (err as Error).message);
     return { picture: base, source: loaded.source, saved: false };

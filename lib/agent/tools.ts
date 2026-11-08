@@ -17,7 +17,7 @@ export interface ScenarioInput {
   cancel?: string[]; // obligation keys (non-essential only)
   moveSavingsToChecking?: number; // dollars, one-time, today
   weeklySavings?: number; // dollars per week, checking → savings
-  purchase?: { amount: number; date?: string; accountId: string; label?: string }; // dollars
+  purchase?: { amount: number; date?: string; accountId: string; label?: string; goalId?: string }; // dollars
 }
 
 export interface ScenarioResult {
@@ -75,7 +75,7 @@ export function runScenario(p: FinancialPicture, input: ScenarioInput, asOf: str
     if (!Number.isSafeInteger(cents) || cents <= 0) return fail('Purchase amount must be positive.');
     if (!validDate(date) || date < asOf || daysBetween(asOf, date) > 335) return fail(`Purchase date must be between ${asOf} and ${addDays(asOf, 335)}.`);
     if (!owned.some((a) => a.id === input.purchase!.accountId && a.type !== 'Credit Card')) return fail('Pay from one of your checking or savings account ids (see get_overview).');
-    changes.push({ kind: 'oneTime', amount: cents, sourceAccountId: input.purchase.accountId, date, label: input.purchase.label ?? 'Purchase' });
+    changes.push({ kind: 'oneTime', amount: cents, sourceAccountId: input.purchase.accountId, ...(input.purchase.goalId ? { goalId: input.purchase.goalId } : {}), date, label: input.purchase.label ?? 'Purchase' });
     days = Math.min(365, Math.max(30, daysBetween(asOf, date) + 30));
     actions.push(`${input.purchase.label ?? 'Purchase'}: ${money0(cents)} on ${shortDate(date)}`);
   }
