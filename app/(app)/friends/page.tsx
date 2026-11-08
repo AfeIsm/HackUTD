@@ -25,7 +25,7 @@ export default function FriendsPage() {
   const sent = (data?.sent ?? []).filter((r) => r.kind === 'friend' && r.status !== 'accepted' && !friendIds.has(r.to.userId));
 
   return (
-    <PageShell id="friends" eyebrow="People outside your household" title="Friends"
+    <PageShell id="friends" title="Friends" showDemoNotice={false}
       intro="Friends see your pledge amount only after everyone commits. Never your balances, bills or score.">
       <div className="grid gap-6">
       {data && <RequestCards requests={data.incoming} />}
