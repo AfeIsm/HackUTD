@@ -12,8 +12,6 @@ import { usePicture } from '@/lib/usePicture';
 import { useViewer } from '@/lib/viewer';
 import { Card, Pill, btn, input } from '@/components/ui';
 import { PageShell } from '@/components/wallet/PageShell';
-import { BuyOptions, useBuyOptions } from '@/components/BuyOptions';
-import type { BuyQuestion } from '@/lib/agent/buyOptions';
 
 interface Question {
   label: string;
@@ -30,7 +28,7 @@ const EXAMPLES: (Question & { chip: string })[] = [
 
 const VERDICT = {
   yes: { label: 'Yes', className: 'bg-good-bg text-good' },
-  yesIf: { label: 'Yes, if…', className: 'bg-warn-bg text-warn' },
+  yesIf: { label: 'Yes, if\u2026', className: 'bg-warn-bg text-warn' },
   no: { label: 'Not right now', className: 'bg-bad-bg text-bad' },
 } as const;
 
@@ -47,9 +45,6 @@ export default function BuyPage() {
   const loaded = usePicture(person.id);
   const [q, setQ] = useState<Question>(EXAMPLES[0]);
   const [asked, setAsked] = useState<{ memberId: string; q: Question } | null>(null);
-  const [askedQuestion, setAskedQuestion] = useState<BuyQuestion | null>(null);
-  const buyOptions = useBuyOptions();
-  const showOptions = asked?.memberId === person.id && askedQuestion && buyOptions.state?.key.startsWith(`${person.id}|`) ? buyOptions.state : null;
 
   const picture = loaded.status === 'ready' ? loaded.picture : null;
   const options = picture ? fundingOptions(picture) : [];
@@ -78,13 +73,6 @@ export default function BuyPage() {
     const normalized = { ...next, from: funding?.value ?? '' };
     setQ(normalized);
     setAsked({ memberId: person.id, q: normalized });
-    const cost = parseMoney(normalized.cost) ?? 0;
-    const label = normalized.label.trim();
-    if (funding && cost > 0 && label.length >= 2 && normalized.date) {
-      const question = { label, cost, date: normalized.date, sourceAccountId: funding.sourceAccountId, goalId: funding.goalId };
-      setAskedQuestion(question);
-      void buyOptions.start(`${person.id}|${JSON.stringify(question)}`, question);
-    } else setAskedQuestion(null);
   };
 
   return (
@@ -93,11 +81,12 @@ export default function BuyPage() {
       {loaded.status !== 'ready' || !picture ? (
         <Card>
           <p className="m-0 text-ink-2">
-            {loaded.status === 'loading' ? 'Loading your accounts…' : loaded.status === 'error' ? 'Couldn’t load your accounts.' : `${person.name} doesn’t have any accounts yet.`}
+            {loaded.status === 'loading' ? 'Loading your accounts\u2026' : loaded.status === 'error' ? 'Couldn\u2019t load your accounts.' : `${person.name} doesn\u2019t have any accounts yet.`}
           </p>
         </Card>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
+          {/* ── Question form ── */}
           <form
             className="paper-card flex min-w-0 flex-col gap-[18px]"
             aria-label="Purchase question"
@@ -146,25 +135,25 @@ export default function BuyPage() {
             </button>
           </form>
 
-          <div className="flex min-w-0 flex-col gap-6">
+          {/* ── Answer card ── */}
           <Card label="Answer" className="flex min-h-[360px] min-w-0 flex-col gap-[18px]">
             {!result ? (
-              <p className="m-0 text-ink-2" aria-live="polite">
-                Ask about something you’re thinking of buying, or try an example.
-              </p>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center" aria-live="polite">
+                <span className="text-4xl" aria-hidden="true">🛒</span>
+                <p className="m-0 max-w-[26ch] text-ink-2">
+                  Ask about something you&apos;re thinking of buying, or try an example above.
+                </p>
+              </div>
             ) : (
               <div className="flex flex-col gap-[18px]" aria-live="polite">
+                {/* Verdict + headline */}
                 <div className="flex flex-wrap items-center gap-3">
                   <Pill className={`${VERDICT[result.verdict].className} px-3 py-1.5 text-sm`}>{VERDICT[result.verdict].label}</Pill>
-                  <span className="text-[13px] text-muted">Same question + same data = same answer</span>
                 </div>
-                <h2 className="m-0 text-[28px] leading-tight">{headline(result)}</h2>
+                <h2 className="m-0 font-display text-[26px] font-semibold leading-tight">{headline(result)}</h2>
                 <p className="m-0 leading-relaxed text-ink-2">{result.reason}</p>
-                {result.lowUntilPayday && (
-                  <p role="status" className="m-0 rounded-[10px] bg-warn-bg px-3.5 py-3 text-sm text-warn">
-                    This leaves {money0(result.lowUntilPayday.left)} {result.lowUntilPayday.payday ? `until your ${shortDate(result.lowUntilPayday.payday)} paycheck` : 'in this account'}. Everyday spending like food and gas isn’t counted in your score.
-                  </p>
-                )}
+
+                {/* Score boxes */}
                 <div className="flex flex-wrap gap-3">
                   <ScoreBox label="Score now" value={result.scoreBefore} />
                   <ScoreBox
@@ -173,24 +162,60 @@ export default function BuyPage() {
                     tone={result.after.overall === 'green' ? 'good' : result.after.overall === 'red' ? 'bad' : 'warn'}
                   />
                 </div>
-                {result.verifiedAlternative && <p className="rounded-lg bg-good-bg p-3">Verified alternative score: {result.verifiedAlternative.result.score} on {shortDate(result.verifiedAlternative.date)}.</p>}
-                <details><summary>Before: indicators</summary><IndicatorList indicators={result.before.indicators} /></details>
-                <details><summary>After: indicators</summary><IndicatorList indicators={result.after.indicators} /></details>
-                {result.missingInputs.length > 0 && <ul>{result.missingInputs.map((m) => <li key={m}>{m}</li>)}</ul>}
+
+                {/* Verified alternative */}
+                {result.verifiedAlternative && (
+                  <p className="rounded-lg bg-good-bg p-3 text-sm">
+                    Verified alternative score: {result.verifiedAlternative.result.score} on {shortDate(result.verifiedAlternative.date)}.
+                  </p>
+                )}
+
+                {/* Missing inputs */}
+                {result.missingInputs.length > 0 && (
+                  <div className="rounded-xl border border-line bg-soft px-4 py-3">
+                    <p className="m-0 mb-1 text-sm font-semibold text-muted">Missing inputs</p>
+                    <ul className="m-0 pl-4 text-sm text-ink-2">
+                      {result.missingInputs.map((m) => <li key={m}>{m}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Flags */}
                 {result.flags.length > 0 && (
                   <ul className="m-0 flex list-none flex-col gap-2 p-0">
                     {result.flags.map((f) => (
-                      <li key={f} className="rounded-[10px] bg-bad-bg px-3.5 py-3 text-sm text-[#7A1712]">
+                      <li key={f} className="flex items-start gap-2 rounded-[10px] bg-bad-bg px-3.5 py-3 text-sm text-[#7A1712]">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-none" aria-hidden="true">
+                          <path d="M12 3 2 21h20L12 3z" />
+                          <path d="M12 10v5" />
+                          <path d="M12 18h.01" />
+                        </svg>
                         {f}
                       </li>
                     ))}
                   </ul>
                 )}
+
+                {/* Score breakdowns */}
+                <details className="rounded-xl border border-line">
+                  <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-muted hover:bg-soft">
+                    Score breakdown &mdash; before purchase
+                  </summary>
+                  <div className="border-t border-line px-4 pb-4 pt-2">
+                    <IndicatorList indicators={result.before.indicators} />
+                  </div>
+                </details>
+                <details className="rounded-xl border border-line">
+                  <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-muted hover:bg-soft">
+                    Score breakdown &mdash; after purchase
+                  </summary>
+                  <div className="border-t border-line px-4 pb-4 pt-2">
+                    <IndicatorList indicators={result.after.indicators} />
+                  </div>
+                </details>
               </div>
             )}
           </Card>
-          {showOptions && askedQuestion && <BuyOptions state={showOptions} picture={picture} question={askedQuestion} />}
-          </div>
         </div>
       )}
     </PageShell>
@@ -198,12 +223,15 @@ export default function BuyPage() {
 }
 
 function ScoreBox({ label, value, tone }: { label: string; value: number | null; tone?: 'good' | 'warn' | 'bad' }) {
-  const bg = tone === 'bad' ? 'bg-bad-bg' : tone === 'warn' ? 'bg-warn-bg' : tone === 'good' ? 'bg-good-bg' : 'bg-bg';
+  const bg = tone === 'bad' ? 'bg-bad-bg' : tone === 'warn' ? 'bg-warn-bg' : tone === 'good' ? 'bg-good-bg' : 'bg-soft';
   const fg = tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : tone === 'good' ? 'text-good' : 'text-ink';
   return (
-    <div className={`flex flex-[1_1_160px] flex-col gap-1 rounded-xl p-4 ${bg}`}>
-      <span className="text-[13px] text-muted">{label}</span>
-      <span className={`font-display text-[32px] font-bold ${fg}`}>{value ?? 'Needs input'}</span>
+    <div className={`flex flex-[1_1_160px] flex-col gap-2 rounded-xl p-4 ${bg}`}>
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted">{label}</span>
+      <span className={`font-display text-[36px] font-bold leading-none tabular-nums ${fg}`}>
+        {value ?? '\u2014'}
+      </span>
+      {value === null && <span className="text-xs text-muted">Needs input</span>}
     </div>
   );
 }

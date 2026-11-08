@@ -326,7 +326,7 @@ button.id-card:hover, button.id-card:focus-visible { transform: translateY(-8px)
 @media (max-width: 1000px) { .household-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; } .household-overview { grid-row: auto; border-right: 0; padding-right: 0; } }
 @media (max-width: 480px) { .page-household .page-title { font-size: 2.5rem; } .page-household .card-swoosh { width: 25%; opacity: 0.55; } }
 .back-btn { padding: 8px 16px; border-radius: 999px; font-weight: 700; background: oklch(1 0 0 / 0.16); backdrop-filter: blur(6px); border: 1px solid oklch(1 0 0 / 0.3); color: inherit; }
-.page-buy .back-btn { background: oklch(1 0 0 / 0.5); border-color: currentColor; }
+.page-buy .back-btn { background: oklch(1 0 0 / 0.5); border-color: oklch(0.36 0.07 160 / 0.4); }
 .back-btn:hover { background: oklch(1 0 0 / 0.28); }
 .page-eyebrow { margin-top: 26px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.85; }
 .page-title { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 600; line-height: 1.08; letter-spacing: -0.02em; margin-top: 6px; max-width: 22ch; }
