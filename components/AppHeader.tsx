@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PEOPLE, getPerson } from '@/lib/demo/people';
+import { Suspense } from 'react';
+import { PEOPLE, getPerson } from '@/lib/people';
 import { useViewer } from '@/lib/viewer';
 import { Avatar } from './ui';
 
@@ -14,8 +15,34 @@ const NAV = [
   { href: '/friends', label: 'Friends' },
 ];
 
+function NavLinks({ pathname }: { pathname: string | null }) {
+  return (
+    <nav aria-label="App" className="flex flex-wrap gap-1">
+      {NAV.map((item) => {
+        const active = !!pathname && (pathname === item.href || pathname.startsWith(`${item.href}/`));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? 'page' : undefined}
+            className={`inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-medium no-underline ${
+              active ? 'bg-ink text-white' : 'text-ink-2 hover:bg-soft hover:text-ink'
+            }`}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+// Reads the URL, so Next 16 needs it inside <Suspense> (fallback: same links, none highlighted)
+function ActiveNav() {
+  return <NavLinks pathname={usePathname()} />;
+}
+
 export function AppHeader() {
-  const pathname = usePathname();
   const { viewerId, setViewerId } = useViewer();
   const me = getPerson(viewerId);
 
@@ -25,23 +52,9 @@ export function AppHeader() {
         <Link href="/" className="font-display text-[22px] font-bold text-ink no-underline">
           Wallet Whisperer
         </Link>
-        <nav aria-label="App" className="flex flex-wrap gap-1">
-          {NAV.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-medium no-underline ${
-                  active ? 'bg-ink text-white' : 'text-ink-2 hover:bg-soft hover:text-ink'
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <Suspense fallback={<NavLinks pathname={null} />}>
+          <ActiveNav />
+        </Suspense>
       </div>
 
       <label className="flex items-center gap-2.5 text-sm text-muted">

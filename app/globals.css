@@ -39,3 +39,10 @@ h2,
 h3 {
   font-family: var(--font-display);
 }
+
+/* carousel: a card that wraps around fades in instead of flying across */
+@keyframes ww-fade-in {
+  from {
+    opacity: 0;
+  }
+}

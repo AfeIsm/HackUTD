@@ -77,7 +77,10 @@ export function detectPaychecks(txns: Txn[], asOf?: string): Paycheck | null {
     if (!amountsConsistent(amounts)) continue;
 
     const typicalGap = median(gapsInDays(group));
-    const cadence = PAY_CADENCES.find((c) => Math.abs(typicalGap - c) <= 3);
+    // closest schedule wins (a 15-day gap is semi-monthly, not biweekly)
+    const [cadence] = PAY_CADENCES.filter((c) => Math.abs(typicalGap - c) <= 3).sort(
+      (a, b) => Math.abs(typicalGap - a) - Math.abs(typicalGap - b),
+    );
     if (cadence === undefined) continue;
 
     const step = (d: string) => (cadence === 30 ? addMonths(d, 1) : addDays(d, cadence));
@@ -97,10 +100,12 @@ export function detectPaychecks(txns: Txn[], asOf?: string): Paycheck | null {
 
 // ---------- detectRecurring ----------
 
-const RECURRING_CADENCES: { days: number; cadence: Obligation['cadence']; slack: number }[] = [
-  { days: 7, cadence: 'weekly', slack: 1 },
-  { days: 14, cadence: 'biweekly', slack: 2 },
-  { days: 30, cadence: 'monthly', slack: 3 }, // months are 28–31 days
+// minCount: 60 days of history only shows a monthly charge twice, but two coffees 2 weeks
+// apart aren't a subscription, so weekly/biweekly need at least 3 charges.
+const RECURRING_CADENCES: { days: number; cadence: Obligation['cadence']; slack: number; minCount: number }[] = [
+  { days: 7, cadence: 'weekly', slack: 1, minCount: 3 },
+  { days: 14, cadence: 'biweekly', slack: 2, minCount: 3 },
+  { days: 30, cadence: 'monthly', slack: 3, minCount: 2 }, // months are 28–31 days
 ];
 
 /**
@@ -118,7 +123,9 @@ export function detectRecurring(txns: Txn[], asOf?: string): Obligation[] {
     if (!amountsConsistent(amounts)) continue;
 
     const gaps = gapsInDays(group);
-    const match = RECURRING_CADENCES.find((r) => gaps.every((g) => Math.abs(g - r.days) <= r.slack));
+    const match = RECURRING_CADENCES.find(
+      (r) => group.length >= r.minCount && gaps.every((g) => Math.abs(g - r.days) <= r.slack),
+    );
     if (!match) continue;
 
     const last = group[group.length - 1];

@@ -1,0 +1,1218 @@
+{
+  "seededAt": "2026-11-08T01:08:24.316Z",
+  "asOf": "2026-11-07",
+  "merchants": {
+    "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863": {
+      "name": "H-E-B",
+      "category": "Groceries"
+    },
+    "71ec5412-2151-4e6e-a3cf-943b28e2e8de": {
+      "name": "Kroger",
+      "category": "Groceries"
+    },
+    "8221e7a8-4680-4675-8d93-d5ebef289967": {
+      "name": "Chipotle",
+      "category": "Dining"
+    },
+    "772e43b2-df47-4b71-99a7-1c50989a5a52": {
+      "name": "Torchy's Tacos",
+      "category": "Dining"
+    },
+    "3c1b25c2-3c71-49e9-8288-a0c425fe6952": {
+      "name": "Starbucks",
+      "category": "Dining"
+    },
+    "d4c9cf05-9623-43fc-a2c0-8437bc8fd034": {
+      "name": "Sonic Drive-In",
+      "category": "Dining"
+    },
+    "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26": {
+      "name": "Shell",
+      "category": "Gas"
+    },
+    "365a849d-2991-4201-a2f3-91400a8398ae": {
+      "name": "Target",
+      "category": "Shopping"
+    },
+    "ad3de844-de72-4ec0-bc97-4afe5050c2d0": {
+      "name": "Netflix",
+      "category": "Entertainment"
+    },
+    "13b8111c-cdb1-4740-8ff0-31080fa60fc3": {
+      "name": "Spotify",
+      "category": "Entertainment"
+    },
+    "aaa0ce85-0cdc-44fc-b59e-be1e4c590f11": {
+      "name": "Hulu",
+      "category": "Entertainment"
+    },
+    "bccf2e1b-e307-467d-b4e7-9cfaca971d8b": {
+      "name": "Disney+",
+      "category": "Entertainment"
+    },
+    "f78d9044-85cf-4410-ac9b-39507a875e08": {
+      "name": "YouTube Premium",
+      "category": "Entertainment"
+    },
+    "8302b669-5025-411e-93a5-0371cc64e204": {
+      "name": "Audible",
+      "category": "Entertainment"
+    },
+    "41d05f1a-9cd9-4887-a5b9-6fb90bb2b8dc": {
+      "name": "Planet Fitness",
+      "category": "Fitness"
+    },
+    "9df7e49c-3390-416f-a4a5-6b3fcebfeb6b": {
+      "name": "Gold's Gym",
+      "category": "Fitness"
+    },
+    "1243d6d2-a349-4c26-873f-792536cd2852": {
+      "name": "HelloFresh",
+      "category": "Food delivery"
+    }
+  },
+  "members": {
+    "alex": {
+      "customerId": "0bf1e7be-05ae-4d2b-816e-da66b5d100c5",
+      "name": "Alex Rivera",
+      "accounts": [
+        {
+          "_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+          "type": "Checking",
+          "nickname": "Checking",
+          "rewards": 0,
+          "balance": 386,
+          "account_number": "0484563962917240",
+          "customer_id": "0bf1e7be-05ae-4d2b-816e-da66b5d100c5",
+          "purchases": [
+            {
+              "_id": "10572a04-953b-4983-8b5b-59f030bc7206",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-30",
+              "amount": 6,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "125d01ae-2d9f-45dd-ab6a-96a4fa5b9be9",
+              "type": "merchant",
+              "merchant_id": "8221e7a8-4680-4675-8d93-d5ebef289967",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-25",
+              "amount": 14,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Chipotle"
+            },
+            {
+              "_id": "16c3cfd5-3bd2-40e4-94a3-d4fb4a9d6289",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-11-01",
+              "amount": 72,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "2d70e3d3-dc2c-4f83-9580-f7d9fbabb37c",
+              "type": "merchant",
+              "merchant_id": "8221e7a8-4680-4675-8d93-d5ebef289967",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-03",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Chipotle"
+            },
+            {
+              "_id": "335b1298-07d2-4738-af80-e7c55bc2ef97",
+              "type": "merchant",
+              "merchant_id": "772e43b2-df47-4b71-99a7-1c50989a5a52",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-19",
+              "amount": 22,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Torchy's Tacos"
+            },
+            {
+              "_id": "3d89a381-800b-4d3d-a963-dfc5bcc0e1cc",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-13",
+              "amount": 64,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "3ec67105-9725-4e8f-b3ae-4cede7cb1921",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-17",
+              "amount": 47,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "487bba34-09df-4473-bd01-e177e5075b11",
+              "type": "merchant",
+              "merchant_id": "ad3de844-de72-4ec0-bc97-4afe5050c2d0",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-14",
+              "amount": 15,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Netflix"
+            },
+            {
+              "_id": "4a79ea43-44fa-4f79-a37d-53460f66e9eb",
+              "type": "merchant",
+              "merchant_id": "365a849d-2991-4201-a2f3-91400a8398ae",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-20",
+              "amount": 23,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Target"
+            },
+            {
+              "_id": "4b80111d-e6ee-4eba-900c-93ed15f734a3",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-27",
+              "amount": 88,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "60174336-299c-4dfb-82a0-4bb985f4267b",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-24",
+              "amount": 35,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "6650858e-ca8b-4247-bdb9-8dbd3caeb038",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-15",
+              "amount": 6,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "673efcb4-587b-4d46-bf73-011f213bb322",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-24",
+              "amount": 5,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "7570bf3d-8bfb-4822-8fda-cf2af234eb12",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-14",
+              "amount": 31,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "764fe435-638d-4661-ad80-d57ececa4138",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-20",
+              "amount": 42,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "76cb2475-444c-4fde-afad-fca06103145a",
+              "type": "merchant",
+              "merchant_id": "13b8111c-cdb1-4740-8ff0-31080fa60fc3",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-16",
+              "amount": 11,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Spotify"
+            },
+            {
+              "_id": "79d464fa-1a2d-4256-8237-9d1cdcb4f07e",
+              "type": "merchant",
+              "merchant_id": "41d05f1a-9cd9-4887-a5b9-6fb90bb2b8dc",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-28",
+              "amount": 40,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Planet Fitness"
+            },
+            {
+              "_id": "7a742dd1-380a-4b9d-89cf-bb1db89b87f8",
+              "type": "merchant",
+              "merchant_id": "aaa0ce85-0cdc-44fc-b59e-be1e4c590f11",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-21",
+              "amount": 17,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Hulu"
+            },
+            {
+              "_id": "8caecd4f-330d-49c1-a42b-b10c6f7a7121",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-29",
+              "amount": 52,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "c359f869-c941-44a1-b667-59fe290fac70",
+              "type": "merchant",
+              "merchant_id": "772e43b2-df47-4b71-99a7-1c50989a5a52",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-12",
+              "amount": 31,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Torchy's Tacos"
+            },
+            {
+              "_id": "c37755d8-1995-4303-8f32-151a993cb829",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-08",
+              "amount": 7,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "cbe6974e-15d3-480b-9321-b21579c3dd82",
+              "type": "merchant",
+              "merchant_id": "aaa0ce85-0cdc-44fc-b59e-be1e4c590f11",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-21",
+              "amount": 17,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Hulu"
+            },
+            {
+              "_id": "d11b2abc-4696-4815-9a12-f5a172ac44d4",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-12",
+              "amount": 38,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "dd284af7-4099-4b7a-b994-a80bf4f86d48",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-09",
+              "amount": 61,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "e0fb7b7e-0099-4b6d-86d8-c32fa20bd0b3",
+              "type": "merchant",
+              "merchant_id": "ad3de844-de72-4ec0-bc97-4afe5050c2d0",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-14",
+              "amount": 15,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Netflix"
+            },
+            {
+              "_id": "e19ae095-3c44-42c5-a9f1-17a4dc6b54d6",
+              "type": "merchant",
+              "merchant_id": "13b8111c-cdb1-4740-8ff0-31080fa60fc3",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-16",
+              "amount": 11,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Spotify"
+            },
+            {
+              "_id": "ef61c8c0-0991-47b1-bfb0-a43f98e42f4d",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-04",
+              "amount": 51,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "f0d28535-696a-402b-b8d0-826e6808b8d3",
+              "type": "merchant",
+              "merchant_id": "41d05f1a-9cd9-4887-a5b9-6fb90bb2b8dc",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-10-28",
+              "amount": 40,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Planet Fitness"
+            },
+            {
+              "_id": "f5ed25e8-afad-499f-b1a2-d26fe131bf2c",
+              "type": "merchant",
+              "merchant_id": "8221e7a8-4680-4675-8d93-d5ebef289967",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-09-11",
+              "amount": 12,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Chipotle"
+            },
+            {
+              "_id": "faef1f09-3cde-468c-a0e4-44f93e085075",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75",
+              "purchase_date": "2026-11-02",
+              "amount": 45,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            }
+          ],
+          "deposits": [
+            {
+              "_id": "010174ed-838b-49d1-84f7-4c880831089a",
+              "medium": "balance",
+              "transaction_date": "2026-09-18",
+              "status": "completed",
+              "amount": 1850,
+              "description": "ACME CORP PAYROLL"
+            },
+            {
+              "_id": "61fe46be-e987-4f7a-a205-272d7de4121b",
+              "medium": "balance",
+              "transaction_date": "2026-10-30",
+              "status": "completed",
+              "amount": 1850,
+              "description": "ACME CORP PAYROLL"
+            },
+            {
+              "_id": "9d55f330-529b-40bb-b8a2-ae895a357bda",
+              "medium": "balance",
+              "transaction_date": "2026-10-02",
+              "status": "completed",
+              "amount": 1850,
+              "description": "ACME CORP PAYROLL"
+            },
+            {
+              "_id": "ff44fce0-e216-4fdc-8383-cbe4361213db",
+              "medium": "balance",
+              "transaction_date": "2026-10-16",
+              "status": "completed",
+              "amount": 1850,
+              "description": "ACME CORP PAYROLL"
+            }
+          ],
+          "withdrawals": [],
+          "bills": [
+            {
+              "_id": "2a376697-df66-4bfe-9a3c-b2221137c510",
+              "status": "recurring",
+              "payee": "Electric",
+              "nickname": "Electric",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-10",
+              "recurring_date": 10,
+              "upcoming_payment_date": "2026-11-10",
+              "payment_amount": 120,
+              "account_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75"
+            },
+            {
+              "_id": "2e923c43-4d19-4fe1-b2ac-ddeac0d1c28f",
+              "status": "recurring",
+              "payee": "T-Mobile",
+              "nickname": "T-Mobile",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-12",
+              "recurring_date": 12,
+              "upcoming_payment_date": "2026-11-12",
+              "payment_amount": 65,
+              "account_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75"
+            },
+            {
+              "_id": "78f49387-0a51-48c3-bca3-d5973047f5aa",
+              "status": "recurring",
+              "payee": "Rent",
+              "nickname": "Rent",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-12-01",
+              "recurring_date": 1,
+              "upcoming_payment_date": "2026-12-01",
+              "payment_amount": 1200,
+              "account_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75"
+            },
+            {
+              "_id": "c8b1f9a9-be3e-4b46-b968-ae87dbad663a",
+              "status": "recurring",
+              "payee": "Car insurance",
+              "nickname": "Car insurance",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-12",
+              "recurring_date": 12,
+              "upcoming_payment_date": "2026-11-12",
+              "payment_amount": 95,
+              "account_id": "6480d61e-b78b-4860-a3ed-356dcbdfdc75"
+            }
+          ],
+          "loans": [
+            {
+              "_id": "9b3fa1ad-cceb-4dcd-b60a-8079305fa873",
+              "type": "auto",
+              "creation_date": "2026-11-08",
+              "status": "approved",
+              "credit_score": 700,
+              "monthly_payment": 310,
+              "amount": 14800,
+              "description": "Car loan · due 20"
+            }
+          ]
+        },
+        {
+          "_id": "53d7f927-41a0-4dd2-aa44-7f586bb79838",
+          "type": "Savings",
+          "nickname": "Savings",
+          "rewards": 0,
+          "balance": 900,
+          "account_number": "7061248252987634",
+          "customer_id": "0bf1e7be-05ae-4d2b-816e-da66b5d100c5",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        },
+        {
+          "_id": "ce85cd31-e2fb-4c3a-952c-e75ef5e03c5a",
+          "type": "Credit Card",
+          "nickname": "Credit card",
+          "rewards": 0,
+          "balance": 900,
+          "account_number": "5444373977026525",
+          "customer_id": "0bf1e7be-05ae-4d2b-816e-da66b5d100c5",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        }
+      ]
+    },
+    "jordan": {
+      "customerId": "f7eaf8c3-c13e-4069-b03b-7ac75924447d",
+      "name": "Jordan Rivera",
+      "accounts": [
+        {
+          "_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+          "type": "Checking",
+          "nickname": "Checking",
+          "rewards": 0,
+          "balance": 2140,
+          "account_number": "2318591231108329",
+          "customer_id": "f7eaf8c3-c13e-4069-b03b-7ac75924447d",
+          "purchases": [
+            {
+              "_id": "01bae321-ac29-46d8-bd1d-67a6be58a4ec",
+              "type": "merchant",
+              "merchant_id": "9df7e49c-3390-416f-a4a5-6b3fcebfeb6b",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-18",
+              "amount": 60,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Gold's Gym"
+            },
+            {
+              "_id": "199831a1-7883-4846-b6c1-8ee435a7020d",
+              "type": "merchant",
+              "merchant_id": "1243d6d2-a349-4c26-873f-792536cd2852",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-10",
+              "amount": 240,
+              "status": "completed",
+              "medium": "balance",
+              "description": "HelloFresh"
+            },
+            {
+              "_id": "27821c8f-4eb8-4cb7-b663-be172e623eb9",
+              "type": "merchant",
+              "merchant_id": "f78d9044-85cf-4410-ac9b-39507a875e08",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-26",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "YouTube Premium"
+            },
+            {
+              "_id": "2a44bb9e-09ff-4507-a222-d2b2d3512547",
+              "type": "merchant",
+              "merchant_id": "71ec5412-2151-4e6e-a3cf-943b28e2e8de",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-27",
+              "amount": 82,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Kroger"
+            },
+            {
+              "_id": "2bcb4b85-6d05-45ee-8728-dd7e93ac0d10",
+              "type": "merchant",
+              "merchant_id": "71ec5412-2151-4e6e-a3cf-943b28e2e8de",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-11",
+              "amount": 118,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Kroger"
+            },
+            {
+              "_id": "3816c1f0-a242-46e7-ac9b-4596a22179c6",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-21",
+              "amount": 48,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "604a1ffb-6846-4df9-b7f8-9a78dd9d081f",
+              "type": "merchant",
+              "merchant_id": "71ec5412-2151-4e6e-a3cf-943b28e2e8de",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-29",
+              "amount": 74,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Kroger"
+            },
+            {
+              "_id": "7322e5ba-40b6-40e3-acab-5c0c82bd02c1",
+              "type": "merchant",
+              "merchant_id": "f78d9044-85cf-4410-ac9b-39507a875e08",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-26",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "YouTube Premium"
+            },
+            {
+              "_id": "7c3c7108-317e-4693-96be-ad679b5cf888",
+              "type": "merchant",
+              "merchant_id": "bccf2e1b-e307-467d-b4e7-9cfaca971d8b",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-19",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Disney+"
+            },
+            {
+              "_id": "949a6550-9f92-48e4-8fad-3a3fbfeb8d9d",
+              "type": "merchant",
+              "merchant_id": "9df7e49c-3390-416f-a4a5-6b3fcebfeb6b",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-18",
+              "amount": 60,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Gold's Gym"
+            },
+            {
+              "_id": "b0d372cb-ac36-41a2-82ea-3fd99c5c7696",
+              "type": "merchant",
+              "merchant_id": "71ec5412-2151-4e6e-a3cf-943b28e2e8de",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-14",
+              "amount": 96,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Kroger"
+            },
+            {
+              "_id": "c69f9dae-f7d6-403b-8323-c7d87bca14da",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-23",
+              "amount": 5,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "cf60085d-3a4a-4e1d-8abb-8038d5fde2ee",
+              "type": "merchant",
+              "merchant_id": "8302b669-5025-411e-93a5-0371cc64e204",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-22",
+              "amount": 14,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Audible"
+            },
+            {
+              "_id": "d73ab07b-b135-43a9-b92b-64e5b9a746fc",
+              "type": "merchant",
+              "merchant_id": "1243d6d2-a349-4c26-873f-792536cd2852",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-10",
+              "amount": 240,
+              "status": "completed",
+              "medium": "balance",
+              "description": "HelloFresh"
+            },
+            {
+              "_id": "de0aec0c-cd6d-40be-9d5b-178a3baa01a4",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-13",
+              "amount": 55,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "e2a7e1d8-54c0-489c-91f1-b354c45907ee",
+              "type": "merchant",
+              "merchant_id": "23c0890f-73da-4a6e-bcf6-02c2ac8b6c26",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-11-03",
+              "amount": 39,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Shell"
+            },
+            {
+              "_id": "e67c0937-0453-45aa-b406-e50d0469c7f7",
+              "type": "merchant",
+              "merchant_id": "bccf2e1b-e307-467d-b4e7-9cfaca971d8b",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-19",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Disney+"
+            },
+            {
+              "_id": "e8b6807e-4c06-48b3-ac31-a3ab15df6a72",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-09-17",
+              "amount": 5,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "f4572643-2d38-4016-bb10-bed73efb61ec",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-05",
+              "amount": 6,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "f65dfbec-94b6-440c-b6a1-d1efa53401c1",
+              "type": "merchant",
+              "merchant_id": "8302b669-5025-411e-93a5-0371cc64e204",
+              "payer_id": "56e73b3f-1794-486a-b634-f535f1de67dc",
+              "purchase_date": "2026-10-22",
+              "amount": 14,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Audible"
+            }
+          ],
+          "deposits": [
+            {
+              "_id": "a932285c-2e37-40da-b99c-36ac704e536f",
+              "medium": "balance",
+              "transaction_date": "2026-10-02",
+              "status": "completed",
+              "amount": 2600,
+              "description": "GLOBEX PAYROLL"
+            },
+            {
+              "_id": "aa9f5ddd-7d90-48f8-864d-dfddffa0aea5",
+              "medium": "balance",
+              "transaction_date": "2026-10-16",
+              "status": "completed",
+              "amount": 2600,
+              "description": "GLOBEX PAYROLL"
+            },
+            {
+              "_id": "b1cf5ee1-b0e1-46b2-9aa4-24d9d611b194",
+              "medium": "balance",
+              "transaction_date": "2026-09-18",
+              "status": "completed",
+              "amount": 2600,
+              "description": "GLOBEX PAYROLL"
+            },
+            {
+              "_id": "ee65fa3a-7ced-49be-b6e5-5de36e40a2a6",
+              "medium": "balance",
+              "transaction_date": "2026-10-30",
+              "status": "completed",
+              "amount": 2600,
+              "description": "GLOBEX PAYROLL"
+            }
+          ],
+          "withdrawals": [],
+          "bills": [
+            {
+              "_id": "8316b9ac-bc5e-411d-883d-8645e3882939",
+              "status": "recurring",
+              "payee": "Utilities",
+              "nickname": "Utilities",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-09",
+              "recurring_date": 9,
+              "upcoming_payment_date": "2026-11-09",
+              "payment_amount": 140,
+              "account_id": "56e73b3f-1794-486a-b634-f535f1de67dc"
+            },
+            {
+              "_id": "a5d6a1a7-bdef-4081-ae52-933df08a19b5",
+              "status": "recurring",
+              "payee": "Car insurance",
+              "nickname": "Car insurance",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-20",
+              "recurring_date": 20,
+              "upcoming_payment_date": "2026-11-20",
+              "payment_amount": 110,
+              "account_id": "56e73b3f-1794-486a-b634-f535f1de67dc"
+            },
+            {
+              "_id": "a8e1e2c4-3a3c-4164-9937-2687d35aacce",
+              "status": "recurring",
+              "payee": "Health insurance",
+              "nickname": "Health insurance",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-25",
+              "recurring_date": 25,
+              "upcoming_payment_date": "2026-11-25",
+              "payment_amount": 380,
+              "account_id": "56e73b3f-1794-486a-b634-f535f1de67dc"
+            },
+            {
+              "_id": "e8de8313-afb4-41f3-82b6-18b845547596",
+              "status": "recurring",
+              "payee": "Verizon",
+              "nickname": "Verizon",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-12",
+              "recurring_date": 12,
+              "upcoming_payment_date": "2026-11-12",
+              "payment_amount": 70,
+              "account_id": "56e73b3f-1794-486a-b634-f535f1de67dc"
+            }
+          ],
+          "loans": [
+            {
+              "_id": "d213c530-2bbd-45a9-9ce9-50592a1f9207",
+              "type": "auto",
+              "creation_date": "2026-11-08",
+              "status": "approved",
+              "credit_score": 700,
+              "monthly_payment": 420,
+              "amount": 18500,
+              "description": "Car loan · due 15"
+            }
+          ]
+        },
+        {
+          "_id": "777c1a16-2e3a-4fe7-b695-86dae4ae0b50",
+          "type": "Savings",
+          "nickname": "Savings",
+          "rewards": 0,
+          "balance": 2400,
+          "account_number": "2034447416885518",
+          "customer_id": "f7eaf8c3-c13e-4069-b03b-7ac75924447d",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        },
+        {
+          "_id": "444bc6cf-2cce-407b-9f80-4b7004782878",
+          "type": "Credit Card",
+          "nickname": "Credit card",
+          "rewards": 0,
+          "balance": 310,
+          "account_number": "4567127340337070",
+          "customer_id": "f7eaf8c3-c13e-4069-b03b-7ac75924447d",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        }
+      ]
+    },
+    "maya": {
+      "customerId": "8012abf3-8222-4102-bef5-895a73cdcb08",
+      "name": "Maya Rivera",
+      "accounts": [
+        {
+          "_id": "d3d1663f-4210-4563-9ad4-2d66935a8a98",
+          "type": "Checking",
+          "nickname": "Checking",
+          "rewards": 0,
+          "balance": 120,
+          "account_number": "6843058905064022",
+          "customer_id": "8012abf3-8222-4102-bef5-895a73cdcb08",
+          "purchases": [
+            {
+              "_id": "5cea5e15-468e-485d-a594-20a511f9f96c",
+              "type": "merchant",
+              "merchant_id": "365a849d-2991-4201-a2f3-91400a8398ae",
+              "payer_id": "d3d1663f-4210-4563-9ad4-2d66935a8a98",
+              "purchase_date": "2026-10-18",
+              "amount": 32,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Target"
+            },
+            {
+              "_id": "71289b12-5f49-4467-a795-7f476d797190",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "d3d1663f-4210-4563-9ad4-2d66935a8a98",
+              "purchase_date": "2026-09-26",
+              "amount": 6,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            },
+            {
+              "_id": "d5c33d7b-744c-44ad-88c8-b9dac00339e4",
+              "type": "merchant",
+              "merchant_id": "365a849d-2991-4201-a2f3-91400a8398ae",
+              "payer_id": "d3d1663f-4210-4563-9ad4-2d66935a8a98",
+              "purchase_date": "2026-09-20",
+              "amount": 18,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Target"
+            },
+            {
+              "_id": "db085b65-4b83-4bff-8bb4-e24bfb491c30",
+              "type": "merchant",
+              "merchant_id": "3c1b25c2-3c71-49e9-8288-a0c425fe6952",
+              "payer_id": "d3d1663f-4210-4563-9ad4-2d66935a8a98",
+              "purchase_date": "2026-10-09",
+              "amount": 7,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Starbucks"
+            }
+          ],
+          "deposits": [
+            {
+              "_id": "0f3b9dfe-d589-4723-8b49-c307eeacef45",
+              "medium": "balance",
+              "transaction_date": "2026-10-15",
+              "status": "completed",
+              "amount": 150,
+              "description": "SONIC DRIVE-IN PAYROLL"
+            },
+            {
+              "_id": "8d96a977-c909-4ea3-a769-c10ccf921051",
+              "medium": "balance",
+              "transaction_date": "2026-09-30",
+              "status": "completed",
+              "amount": 150,
+              "description": "SONIC DRIVE-IN PAYROLL"
+            },
+            {
+              "_id": "c41353cb-4c77-4a83-befc-3a6a67c12eed",
+              "medium": "balance",
+              "transaction_date": "2026-09-15",
+              "status": "completed",
+              "amount": 150,
+              "description": "SONIC DRIVE-IN PAYROLL"
+            },
+            {
+              "_id": "d7220057-8c1d-4b8b-ae7c-c916f1c572fd",
+              "medium": "balance",
+              "transaction_date": "2026-10-30",
+              "status": "completed",
+              "amount": 150,
+              "description": "SONIC DRIVE-IN PAYROLL"
+            }
+          ],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        },
+        {
+          "_id": "944e2800-1fa4-4f63-8f5a-f86460bfd3dd",
+          "type": "Savings",
+          "nickname": "Savings",
+          "rewards": 0,
+          "balance": 400,
+          "account_number": "7517834778225587",
+          "customer_id": "8012abf3-8222-4102-bef5-895a73cdcb08",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        }
+      ]
+    },
+    "sam": {
+      "customerId": "71b87b7b-a67f-49a1-a162-0e06717c5dde",
+      "name": "Sam Chen",
+      "accounts": [
+        {
+          "_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+          "type": "Checking",
+          "nickname": "Checking",
+          "rewards": 0,
+          "balance": 1480,
+          "account_number": "6018216844161670",
+          "customer_id": "71b87b7b-a67f-49a1-a162-0e06717c5dde",
+          "purchases": [
+            {
+              "_id": "04203b6c-5038-4a95-8fc8-14b8c1617e64",
+              "type": "merchant",
+              "merchant_id": "8221e7a8-4680-4675-8d93-d5ebef289967",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-10-15",
+              "amount": 12,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Chipotle"
+            },
+            {
+              "_id": "2430a506-6342-4f72-85aa-a008bcb24ea9",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-10-01",
+              "amount": 71,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "53062b6a-b281-48d2-8920-de1acead318b",
+              "type": "merchant",
+              "merchant_id": "13b8111c-cdb1-4740-8ff0-31080fa60fc3",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-09-20",
+              "amount": 11,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Spotify"
+            },
+            {
+              "_id": "78031bc7-36fa-4acb-ac61-f73e0d7820f3",
+              "type": "merchant",
+              "merchant_id": "8221e7a8-4680-4675-8d93-d5ebef289967",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-09-23",
+              "amount": 13,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Chipotle"
+            },
+            {
+              "_id": "9507fb4a-365a-423e-aeef-41fae3e5e8d9",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-10-19",
+              "amount": 49,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "a4d3cab9-e717-4067-af66-548b89015c0c",
+              "type": "merchant",
+              "merchant_id": "cfb574e1-7f48-42c6-b5eb-c6bcf6d4a863",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-09-16",
+              "amount": 58,
+              "status": "completed",
+              "medium": "balance",
+              "description": "H-E-B"
+            },
+            {
+              "_id": "bf1b8d9e-a67b-4c85-856f-f0d74bd0caa4",
+              "type": "merchant",
+              "merchant_id": "13b8111c-cdb1-4740-8ff0-31080fa60fc3",
+              "payer_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762",
+              "purchase_date": "2026-10-20",
+              "amount": 11,
+              "status": "completed",
+              "medium": "balance",
+              "description": "Spotify"
+            }
+          ],
+          "deposits": [
+            {
+              "_id": "326d9886-2465-4bed-88ce-bcda77f5daf4",
+              "medium": "balance",
+              "transaction_date": "2026-10-02",
+              "status": "completed",
+              "amount": 2200,
+              "description": "INITECH PAYROLL"
+            },
+            {
+              "_id": "3f9f0691-4be7-416f-a281-84d6879092e7",
+              "medium": "balance",
+              "transaction_date": "2026-10-30",
+              "status": "completed",
+              "amount": 2200,
+              "description": "INITECH PAYROLL"
+            },
+            {
+              "_id": "5b956e1d-bb8f-40cc-98ea-860880aba2a2",
+              "medium": "balance",
+              "transaction_date": "2026-09-18",
+              "status": "completed",
+              "amount": 2200,
+              "description": "INITECH PAYROLL"
+            },
+            {
+              "_id": "f27f5183-24f2-409f-891e-f5ec97a5e7dd",
+              "medium": "balance",
+              "transaction_date": "2026-10-16",
+              "status": "completed",
+              "amount": 2200,
+              "description": "INITECH PAYROLL"
+            }
+          ],
+          "withdrawals": [],
+          "bills": [
+            {
+              "_id": "204baad7-d927-4797-8dde-a4b63e54e1ce",
+              "status": "recurring",
+              "payee": "AT&T",
+              "nickname": "AT&T",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-18",
+              "recurring_date": 18,
+              "upcoming_payment_date": "2026-11-18",
+              "payment_amount": 60,
+              "account_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762"
+            },
+            {
+              "_id": "2902c7e6-392b-471d-8d62-d2915b6e9ba2",
+              "status": "recurring",
+              "payee": "Electric",
+              "nickname": "Electric",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-11-14",
+              "recurring_date": 14,
+              "upcoming_payment_date": "2026-11-14",
+              "payment_amount": 90,
+              "account_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762"
+            },
+            {
+              "_id": "85420f32-c502-4d47-89dc-2a40d008216b",
+              "status": "recurring",
+              "payee": "Rent",
+              "nickname": "Rent",
+              "creation_date": "2026-11-08",
+              "payment_date": "2026-12-01",
+              "recurring_date": 1,
+              "upcoming_payment_date": "2026-12-01",
+              "payment_amount": 1100,
+              "account_id": "4e2c0177-8310-4613-a9b3-f40c1a2fd762"
+            }
+          ],
+          "loans": []
+        },
+        {
+          "_id": "d8140b27-8efd-452d-a0b3-9655814f441a",
+          "type": "Savings",
+          "nickname": "Savings",
+          "rewards": 0,
+          "balance": 3200,
+          "account_number": "0386063435068578",
+          "customer_id": "71b87b7b-a67f-49a1-a162-0e06717c5dde",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        },
+        {
+          "_id": "b34b6c3d-3334-45f9-b8c7-99555687bdfa",
+          "type": "Credit Card",
+          "nickname": "Credit card",
+          "rewards": 0,
+          "balance": 450,
+          "account_number": "3666206270608447",
+          "customer_id": "71b87b7b-a67f-49a1-a162-0e06717c5dde",
+          "purchases": [],
+          "deposits": [],
+          "withdrawals": [],
+          "bills": [],
+          "loans": []
+        }
+      ]
+    }
+  }
+}
